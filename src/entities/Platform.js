@@ -1,6 +1,6 @@
 import { rand } from "../config.js";
 export class Platform {
-  constructor({x,y,width=90,type="normal",speed=0,direction=1,item=null}) { Object.assign(this,{x,y,width,type,speed,direction,item}); this.baseWidth=width;this.baseX=x;this.height=18;this.active=true;this.breakTimer=0;this.phase=rand(0,6);this.rewarded=false; }
+  constructor({x,y,width=90,type="normal",speed=0,direction=1,item=null,phase=rand(0,6)}) { Object.assign(this,{x,y,width,type,speed,direction,item,phase}); this.baseWidth=width;this.baseX=x;this.height=18;this.active=true;this.breakTimer=0;this.rewarded=false; }
   update(dt) {
     this.phase+=dt;
     if(this.type==="moving") { this.x+=this.speed*this.direction*dt; if(this.x<10||this.x+this.width>470) this.direction*=-1; }

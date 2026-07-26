@@ -10,8 +10,9 @@ import { findLanding } from "./systems/CollisionSystem.js";
 import { updateCamera } from "./systems/CameraSystem.js";
 import { limitDelta } from "./systems/PhysicsSystem.js";
 import { drawHUD } from "./ui/HUD.js";
-import { showStart, showCodex } from "./ui/StartScreen.js";
+import { showStart, showCodex, showRaceLobby } from "./ui/StartScreen.js";
 import { showGameOver } from "./ui/GameOverScreen.js";
+import { RaceManager } from "./RaceManager.js";
 
 export class Game {
   constructor(canvas,overlay) {
@@ -20,10 +21,21 @@ export class Game {
     this.distance=0;this.bonusScore=0;this.score=0;this.level=CHARACTER_LEVELS[0];this.levelBanner=0;this.slowMotion=0;
     this.pressureDistance=0;
     this.windTimer=0;this.windDirection=1;
+    this.racePlayers=[];this.raceSyncTimer=0;
     this.debug=new URLSearchParams(location.search).get("debug")==="true";this.showBoxes=this.debug;this.gravity=true;this.fps=0;this.best=this.loadNumber(STORAGE_KEYS.bestScore);
     this.playerName=this.loadText(STORAGE_KEYS.playerName);this.records=this.loadRecords();
     this.difficulty=GAME_DIFFICULTIES[this.loadText(STORAGE_KEYS.difficulty)]?.id||"normal";
     this.audio=new AudioManager(this.loadBoolean(STORAGE_KEYS.soundMuted));this.input=new InputManager(canvas,action=>this.action(action));
+    this.race=new RaceManager({
+      onLobby:snapshot=>{if(this.state!==GameState.PLAYING)showRaceLobby(this.overlay,snapshot);},
+      onStart:({seed,difficulty,startAt})=>{
+        this.difficulty=difficulty;
+        showRaceLobby(this.overlay,{...this.race.snapshot("레이스가 곧 시작됩니다!"),status:"3 · 2 · 1 · 출발!"});
+        setTimeout(()=>this.start(seed),Math.max(0,(startAt||Date.now())-Date.now()));
+      },
+      onUpdate:players=>{this.racePlayers=players;},
+      onError:message=>showRaceLobby(this.overlay,{mode:"menu",status:message})
+    });
     this.lastTime=performance.now();this.overlay.addEventListener("click",e=>{const action=e.target.closest("[data-action]")?.dataset.action;if(action)this.action(action);});
   }
   async init() {
@@ -34,9 +46,14 @@ export class Game {
   action(action) {
     this.audio.unlock();
     if(action==="codex"&&this.state===GameState.START){showCodex(this.overlay);return;}
+    if(action==="race"&&this.state===GameState.START){if(this.capturePlayerName())showRaceLobby(this.overlay);return;}
+    if(action==="createRace"){this.race.create(this.playerName,this.difficulty);return;}
+    if(action==="joinRace"){const code=(this.overlay.querySelector("#roomCode")?.value||"").trim();if(code.length!==6){showRaceLobby(this.overlay,{mode:"menu",status:"6자리 방 코드를 입력해 주세요."});return;}this.race.join(code,this.playerName);return;}
+    if(action==="startRace"){this.race.startRace(this.difficulty);return;}
+    if(action==="raceBack"){this.race.destroy();this.state=GameState.START;this.showStart();return;}
     if(["activate","Space","start"].includes(action)&&this.state===GameState.START){if(this.capturePlayerName())this.start();return;}
-    if(["activate","Space","restart"].includes(action)&&this.state===GameState.GAME_OVER){this.start();return;}
-    if(action==="home"){this.state=GameState.START;this.showStart();return;}
+    if(["activate","Space","restart"].includes(action)&&this.state===GameState.GAME_OVER){if(this.race.active){this.race.destroy();this.state=GameState.START;this.showStart();}else this.start();return;}
+    if(action==="home"){this.race.destroy();this.state=GameState.START;this.showStart();return;}
     if(action==="KeyP"||action==="pause"){this.togglePause();return;}
     if(action==="KeyM"||action==="mute"){this.audio.toggle();this.save(STORAGE_KEYS.soundMuted,this.audio.muted);this.syncButtons();return;}
     if(this.debug&&/^Digit[1-9]$/.test(action)){this.forceLevel(Number(action.at(-1)));return;}
@@ -48,11 +65,11 @@ export class Game {
     if(this.debug&&action==="KeyB")this.showBoxes=!this.showBoxes;
     if(this.debug&&action==="KeyR")this.start();
   }
-  start() {
+  start(seed=null) {
     this.state=GameState.PLAYING;this.overlay.classList.remove("start-background");this.overlay.innerHTML="";this.player.reset();this.level=CHARACTER_LEVELS[0];this.player.setLevel(this.level);
-    this.platformManager.reset(this.difficulty);this.distance=0;this.bonusScore=0;this.score=0;this.levelBanner=0;this.pressureDistance=0;this.windTimer=0;this.windDirection=Math.random()<.5?-1:1;this.player.land(this.platformManager.platforms[0]);this.syncButtons();
+    this.platformManager.reset(this.difficulty,seed);this.distance=0;this.bonusScore=0;this.score=0;this.levelBanner=0;this.pressureDistance=0;this.windTimer=0;this.windDirection=seed?(seed%2?1:-1):(Math.random()<.5?-1:1);this.raceSyncTimer=0;this.player.land(this.platformManager.platforms[0]);this.syncButtons();
   }
-  togglePause(){if(this.state===GameState.PLAYING){this.state=GameState.PAUSED;this.overlay.innerHTML='<div class="card"><h2>잠시 쉬어가요</h2><button class="primary" data-action="pause">계속하기</button></div>';}else if(this.state===GameState.PAUSED){this.state=GameState.PLAYING;this.overlay.innerHTML="";}}
+  togglePause(){if(this.race.active)return;if(this.state===GameState.PLAYING){this.state=GameState.PAUSED;this.overlay.innerHTML='<div class="card"><h2>잠시 쉬어가요</h2><button class="primary" data-action="pause">계속하기</button></div>';}else if(this.state===GameState.PAUSED){this.state=GameState.PLAYING;this.overlay.innerHTML="";}}
   update(dt) {
     const difficultyData=GAME_DIFFICULTIES[this.difficulty]||GAME_DIFFICULTIES.normal;
     if(difficultyData.screenRiseSpeed>0){
@@ -79,6 +96,8 @@ export class Game {
     const next=getLevelForScore(this.score);if(next.level!==this.level.level)this.levelUp(next);
     this.particles.update(dt);if(this.levelBanner>0)this.levelBanner-=dt;if(this.slowMotion>0)this.slowMotion-=dt;
     if(this.player.y>GAME_HEIGHT+100)this.handleFall();
+    if(this.state!==GameState.PLAYING)return;
+    if(this.race.active){this.raceSyncTimer+=dt;if(this.raceSyncTimer>=.12){this.raceSyncTimer=0;this.race.updateLocal({name:this.playerName,score:this.score,level:this.level.level,alive:true,altitude:Math.floor(this.distance)});}}
   }
   handleFall() {
     if(this.player.shield){this.player.shield=false;const target=this.platformManager.platforms.filter(p=>p.active&&p.visible&&p.y<740).sort((a,b)=>b.y-a.y)[0];if(target){this.player.x=target.x+target.width/2-41;this.player.y=target.y-82;this.player.land(target);return;}}
@@ -86,12 +105,12 @@ export class Game {
   }
   levelUp(next){this.level=next;this.player.setLevel(next);this.levelBanner=1.2;this.slowMotion=.35;this.particles.burst(240,330,"#fff06d",40,220);this.audio.tone(880,.25,"sine");this.save(STORAGE_KEYS.highestLevel,next.level);}
   forceLevel(number){this.level=CHARACTER_LEVELS[number-1];this.player.setLevel(this.level);this.levelBanner=1.2;}
-  gameOver(reason="구름 아래로\n살포시 착지!"){if(this.state===GameState.GAME_OVER)return;this.state=GameState.GAME_OVER;this.player.state=PlayerState.DEAD;this.best=Math.max(this.best,this.score);this.save(STORAGE_KEYS.bestScore,this.best);this.addRecord();this.particles.burst(this.player.x+40,760,"#fff",22,150);this.audio.tone(120,.5,"sawtooth");showGameOver(this.overlay,this.score,this.best,this.level,this.playerName,this.records,reason);}
+  gameOver(reason="구름 아래로\n살포시 착지!"){if(this.state===GameState.GAME_OVER)return;this.state=GameState.GAME_OVER;this.player.state=PlayerState.DEAD;this.best=Math.max(this.best,this.score);this.save(STORAGE_KEYS.bestScore,this.best);this.addRecord();if(this.race.active)this.race.updateLocal({name:this.playerName,score:this.score,level:this.level.level,alive:false,altitude:Math.floor(this.distance)});this.particles.burst(this.player.x+40,760,"#fff",22,150);this.audio.tone(120,.5,"sawtooth");showGameOver(this.overlay,this.score,this.best,this.level,this.playerName,this.records,reason,this.race.active?this.race.getPlayers():[]);}
   render() {
     this.drawBackground();this.platformManager.render(this.ctx,this.debug&&this.showBoxes);this.particles.render(this.ctx);
     const spriteState=this.player.state===PlayerState.DEAD?"fall":this.player.state;
     this.player.render(this.ctx,this.assets.get(this.level.level,spriteState),this.debug&&this.showBoxes);
-    if(this.state===GameState.PLAYING||this.state===GameState.PAUSED){drawHUD(this.ctx,this.score,Math.max(this.best,this.score),this.level);if(this.level.level>=11)this.drawWind();}
+    if(this.state===GameState.PLAYING||this.state===GameState.PAUSED){drawHUD(this.ctx,this.score,Math.max(this.best,this.score),this.level);if(this.level.level>=11)this.drawWind();if(this.race.active)this.drawRaceHUD();}
     if(this.levelBanner>0)this.drawLevelBanner();
     if(this.debug)this.drawDebug();
   }
@@ -104,6 +123,7 @@ export class Game {
   }
   drawLevelBanner(){this.ctx.save();this.ctx.globalAlpha=Math.min(1,this.levelBanner*2);this.ctx.fillStyle="#102a42dc";this.ctx.fillRect(58,276,364,118);this.ctx.textAlign="center";this.ctx.fillStyle="#ffd65c";this.ctx.font="900 18px sans-serif";this.ctx.fillText("LEVEL UP!",240,307);this.ctx.fillStyle="#fff";this.ctx.font="900 31px sans-serif";this.ctx.fillText(`Lv.${this.level.level} ${this.level.name}`,240,344);this.ctx.font="600 14px sans-serif";this.ctx.fillText(this.level.description,240,371);this.ctx.restore();}
   drawWind(){this.ctx.save();this.ctx.fillStyle="#ffffffb8";this.ctx.beginPath();this.ctx.roundRect(170,91,140,28,14);this.ctx.fill();this.ctx.fillStyle="#31536d";this.ctx.textAlign="center";this.ctx.font="800 12px sans-serif";this.ctx.fillText(this.windDirection>0?"바람  〰  오른쪽 ▶":"◀ 왼쪽  〰  바람",240,110);this.ctx.restore();}
+  drawRaceHUD(){const others=this.racePlayers.filter(player=>player.id!==this.race.localId).sort((a,b)=>b.score-a.score).slice(0,3);if(!others.length)return;this.ctx.save();this.ctx.fillStyle="#142f46c9";this.ctx.beginPath();this.ctx.roundRect(292,91,176,24+others.length*22,12);this.ctx.fill();this.ctx.fillStyle="#fff";this.ctx.font="800 11px sans-serif";this.ctx.textAlign="left";this.ctx.fillText("LIVE RACE",304,108);others.forEach((player,index)=>{this.ctx.fillStyle=player.alive===false?"#a9b4bc":"#fff";this.ctx.fillText(`${index+1}. ${player.name}`,304,129+index*21);this.ctx.textAlign="right";this.ctx.fillText(`${player.score}`,456,129+index*21);this.ctx.textAlign="left";});this.ctx.restore();}
   drawDebug(){this.ctx.save();this.ctx.fillStyle="#06111ddd";this.ctx.fillRect(10,96,190,120);this.ctx.fillStyle="#b7ff8b";this.ctx.font="12px monospace";const lines=[`FPS ${this.fps.toFixed(0)}`,`STATE ${this.player.state}`,`VX ${this.player.velocityX.toFixed(1)}`,`VY ${this.player.velocityY.toFixed(1)}`,`JUMP ${this.player.jumpPower}`,`CAMERA ${this.distance.toFixed(0)}`,`PLATFORMS ${this.platformManager.platforms.length}`,`GRAVITY ${this.gravity}`];lines.forEach((line,i)=>this.ctx.fillText(line,19,113+i*14));this.ctx.restore();}
   loop(time){const raw=(time-this.lastTime)/1000;this.lastTime=time;this.fps=this.fps*.9+(raw?1/raw:60)*.1;if(this.state===GameState.PLAYING)this.update(limitDelta(raw)*(this.slowMotion>0?.45:1));this.render();requestAnimationFrame(t=>this.loop(t));}
   showStart(){showStart(this.overlay,this.best,"assets/sprites/level1/idle.png",this.playerName,this.difficulty);this.syncButtons();}
