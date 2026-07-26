@@ -1,11 +1,11 @@
 export class RaceManager {
   constructor({onLobby,onStart,onUpdate,onError}) {
     this.onLobby=onLobby;this.onStart=onStart;this.onUpdate=onUpdate;this.onError=onError;
-    this.peer=null;this.connections=new Map();this.players=new Map();this.isHost=false;this.active=false;this.code="";this.localId="local";
+    this.peer=null;this.connections=new Map();this.players=new Map();this.isHost=false;this.active=false;this.code="";this.localId="local";this.difficulty="normal";
   }
   create(name,difficulty) {
     if(!window.Peer)return this.fail("실시간 연결 모듈을 불러오지 못했습니다.");
-    this.destroy();this.localName=name;this.isHost=true;this.active=true;this.code=this.makeCode();this.localId=`host-${this.code}`;
+    this.destroy();this.localName=name;this.isHost=true;this.active=true;this.difficulty=difficulty;this.code=this.makeCode();this.localId=`host-${this.code}`;
     this.players.set(this.localId,{id:this.localId,name,score:0,level:1,alive:true,ready:true});
     this.peer=new window.Peer(`hamin-jump-${this.code}`,{debug:1});
     this.peer.on("open",()=>this.emitLobby("방이 만들어졌어요. 코드를 친구에게 알려주세요."));
@@ -31,7 +31,7 @@ export class RaceManager {
       if(data.type==="join"){this.players.set(connection.peer,{id:connection.peer,name:String(data.name||"친구").slice(0,12),score:0,level:1,alive:true,ready:true});this.broadcastLobby();}
       if(data.type==="state"){this.players.set(connection.peer,{...this.players.get(connection.peer),...data.player,id:connection.peer});this.broadcast({type:"state",players:[...this.players.values()]});this.onUpdate?.([...this.players.values()]);}
     }else{
-      if(data.type==="lobby"){this.players=new Map(data.players.map(player=>[player.id,player]));this.onLobby?.(this.snapshot(data.status));}
+      if(data.type==="lobby"){this.difficulty=data.difficulty||"normal";this.players=new Map(data.players.map(player=>[player.id,player]));this.onLobby?.(this.snapshot(data.status));}
       if(data.type==="start")this.onStart?.(data);
       if(data.type==="state"){this.players=new Map(data.players.map(player=>[player.id,player]));this.onUpdate?.([...this.players.values()]);}
     }
@@ -41,17 +41,21 @@ export class RaceManager {
     const seed=Math.floor(Math.random()*2147483646)+1,message={type:"start",seed,difficulty,startAt:Date.now()+1800};
     this.broadcast(message);this.onStart?.(message);
   }
+  setDifficulty(difficulty) {
+    if(!this.isHost||!["beginner","normal","advanced"].includes(difficulty))return;
+    this.difficulty=difficulty;this.broadcastLobby();
+  }
   updateLocal(player) {
     if(!this.active)return;
-    const state={id:this.localId,name:player.name,score:player.score,level:player.level,alive:player.alive,altitude:player.altitude};
+    const state={id:this.localId,name:player.name,score:player.score,level:player.level,alive:player.alive,altitude:player.altitude,progress:player.progress,x:player.x,state:player.state,facing:player.facing};
     this.players.set(this.localId,state);
     if(this.isHost){this.broadcast({type:"state",players:[...this.players.values()]});this.onUpdate?.([...this.players.values()]);}
     else this.connections.values().next().value?.send({type:"state",player:state});
   }
-  broadcastLobby(){const message={type:"lobby",players:[...this.players.values()],status:`${this.players.size}/4명 참가`};this.broadcast(message);this.onLobby?.(this.snapshot(message.status));}
+  broadcastLobby(){const message={type:"lobby",players:[...this.players.values()],difficulty:this.difficulty,status:`${this.players.size}/4명 참가`};this.broadcast(message);this.onLobby?.(this.snapshot(message.status));}
   broadcast(message){for(const connection of this.connections.values())if(connection.open)connection.send(message);}
   emitLobby(status){this.onLobby?.(this.snapshot(status));}
-  snapshot(status=""){return{mode:"room",code:this.code,players:[...this.players.values()],isHost:this.isHost,status};}
+  snapshot(status=""){return{mode:"room",code:this.code,players:[...this.players.values()],isHost:this.isHost,difficulty:this.difficulty,status};}
   getPlayers(){return[...this.players.values()];}
   getLocalName(){return this.players.get(this.localId)?.name||this.localName||"친구";}
   makeCode(){const chars="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";return Array.from({length:6},()=>chars[Math.floor(Math.random()*chars.length)]).join("");}

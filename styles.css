@@ -1,5 +1,7 @@
 :root { color-scheme: dark; font-family: "Pretendard", "Noto Sans KR", system-ui, sans-serif; }
 * { box-sizing: border-box; }
+html, body, .game-shell, canvas, button, label, .overlay { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+input, textarea { -webkit-user-select: text; user-select: text; }
 html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; touch-action: none; overscroll-behavior: none; }
 body { display: grid; place-items: center; background: radial-gradient(circle at 50% 20%, #284e70, #081523 68%); }
 .game-shell { position: relative; width: min(100vw, 480px); height: min(100vh, 800px); aspect-ratio: 3 / 5; overflow: hidden; background: #9bdcf1; box-shadow: 0 24px 80px #0009; }
@@ -55,6 +57,8 @@ p { line-height: 1.6; }
 .race-players { display: grid; gap: 7px; margin: 14px 0; padding: 0; list-style: none; text-align: left; }
 .race-players li { display: flex; justify-content: space-between; padding: 10px 12px; border-radius: 12px; background: #edf5f4; font-weight: 800; }
 .race-status { min-height: 24px; color: #576c78; font-size: 13px; }
+.race-difficulty { margin: 14px 0 10px; }
+.race-difficulty-label { margin: 12px 0; padding: 9px; border-radius: 12px; background: #edf5f4; }
 .race-join { display: flex; gap: 8px; margin: 12px 0; }
 .race-join input { min-width: 0; flex: 1; height: 48px; padding: 0 13px; border: 2px solid #c9dde4; border-radius: 13px; text-transform: uppercase; font: inherit; font-weight: 900; letter-spacing: .1em; }
 .race-join button { min-width: 92px; }
