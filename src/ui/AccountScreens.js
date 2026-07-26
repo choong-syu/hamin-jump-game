@@ -4,7 +4,7 @@ const escapeHtml=value=>{const node=document.createElement("div");node.textConte
 
 export function showAuth(overlay,{message="",target=""}={}){
   overlay.classList.add("start-background");
-  const form=(kind,title,description)=>`<section class="auth-form"><h2>${title}</h2><p>${description}</p><label class="name-field">모험가 이름<input id="${kind}Name" maxlength="12" autocomplete="username" placeholder="2~12자"></label><label class="name-field">비밀번호<input id="${kind}Password" type="password" maxlength="30" autocomplete="${kind==="login"?"current-password":"new-password"}" placeholder="4자 이상"></label><p class="form-message">${target===kind?escapeHtml(message):""}</p><button class="primary" data-action="${kind}">${title}</button></section>`;
+  const form=(kind,title,description)=>`<section class="auth-form"><h2>${title}</h2><p>${description}</p><label class="name-field">${kind==="login"?"로그인 이름":"새 계정 이름"}<input id="${kind}Name" maxlength="12" autocomplete="username" placeholder="2~12자"></label><label class="name-field">${kind==="login"?"로그인 비밀번호":"새 비밀번호"}<input id="${kind}Password" type="password" maxlength="30" autocomplete="${kind==="login"?"current-password":"new-password"}" placeholder="4자 이상"></label><p class="form-message">${target===kind?escapeHtml(message):""}</p><button class="primary" data-action="${kind}">${title}</button></section>`;
   overlay.innerHTML=`<div class="card auth-card"><p class="eyebrow">HAMIN JUMP CLUB</p><h1>하민이의 점프 게임</h1><div class="auth-columns">${form("login","로그인","어느 기기에서든 내 계정을 불러와요.")}${form("signup","회원가입","새 모험가 계정을 만들어요.")}</div><small class="local-account-note">계정·코인·기록은 Vercel의 공용 데이터 서버에 안전하게 저장됩니다.</small></div>`;
 }
 
