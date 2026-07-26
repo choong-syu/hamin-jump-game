@@ -2,7 +2,7 @@ import { neon } from "@neondatabase/serverless";
 import { createHash, randomBytes, scrypt as nodeScrypt, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 
-export const sql=neon(process.env.HAMIN_DB_URL);
+export const sql=neon(process.env.HAMIN_DB_DATABASE_URL||process.env.HAMIN_DB_POSTGRES_URL);
 const scrypt=promisify(nodeScrypt);
 const SESSION_SECONDS=60*60*24*30;
 let schemaPromise;

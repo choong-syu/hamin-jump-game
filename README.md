@@ -40,7 +40,7 @@ python -m http.server 8000
 
 파일을 직접 더블클릭하면 ES Module 보안 정책 때문에 실행되지 않을 수 있습니다.
 
-계정 API까지 로컬에서 실행하려면 Vercel CLI와 `HAMIN_DB_URL` 환경 변수가 필요합니다. 운영 환경에서는 Vercel Marketplace Database가 프로젝트에 연결되어 환경 변수를 자동 제공합니다.
+계정 API까지 로컬에서 실행하려면 Vercel CLI와 `HAMIN_DB_DATABASE_URL` 환경 변수가 필요합니다. 운영 환경에서는 Vercel Marketplace Database가 프로젝트에 연결되어 환경 변수를 자동 제공합니다.
 
 ## 폴더 구조
 
