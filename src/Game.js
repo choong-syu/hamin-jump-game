@@ -1,7 +1,7 @@
 import { AssetLoader } from "./AssetLoader.js";
 import { AudioManager } from "./AudioManager.js";
 import { InputManager } from "./InputManager.js";
-import { CHARACTER_LEVELS, GAME_HEIGHT, GAME_WIDTH, GameState, PlayerState, STORAGE_KEYS, getLevelForScore } from "./config.js";
+import { CHARACTER_LEVELS, GAME_DIFFICULTIES, GAME_HEIGHT, GAME_WIDTH, GameState, PlayerState, STORAGE_KEYS, getLevelForScore } from "./config.js";
 import { Player } from "./entities/Player.js";
 import { Item } from "./entities/Item.js";
 import { PlatformManager } from "./systems/PlatformManager.js";
@@ -20,6 +20,7 @@ export class Game {
     this.distance=0;this.bonusScore=0;this.score=0;this.level=CHARACTER_LEVELS[0];this.levelBanner=0;this.slowMotion=0;
     this.debug=new URLSearchParams(location.search).get("debug")==="true";this.showBoxes=this.debug;this.gravity=true;this.fps=0;this.best=this.loadNumber(STORAGE_KEYS.bestScore);
     this.playerName=this.loadText(STORAGE_KEYS.playerName);this.records=this.loadRecords();
+    this.difficulty=GAME_DIFFICULTIES[this.loadText(STORAGE_KEYS.difficulty)]?.id||"normal";
     this.audio=new AudioManager(this.loadBoolean(STORAGE_KEYS.soundMuted));this.input=new InputManager(canvas,action=>this.action(action));
     this.lastTime=performance.now();this.overlay.addEventListener("click",e=>{const action=e.target.closest("[data-action]")?.dataset.action;if(action)this.action(action);});
   }
@@ -44,12 +45,12 @@ export class Game {
   }
   start() {
     this.state=GameState.PLAYING;this.overlay.innerHTML="";this.player.reset();this.level=CHARACTER_LEVELS[0];this.player.setLevel(this.level);
-    this.platformManager.reset();this.distance=0;this.bonusScore=0;this.score=0;this.levelBanner=0;this.player.land(this.platformManager.platforms[0]);this.syncButtons();
+    this.platformManager.reset(this.difficulty);this.distance=0;this.bonusScore=0;this.score=0;this.levelBanner=0;this.player.land(this.platformManager.platforms[0]);this.syncButtons();
   }
   togglePause(){if(this.state===GameState.PLAYING){this.state=GameState.PAUSED;this.overlay.innerHTML='<div class="card"><h2>잠시 쉬어가요</h2><button class="primary" data-action="pause">계속하기</button></div>';}else if(this.state===GameState.PAUSED){this.state=GameState.PLAYING;this.overlay.innerHTML="";}}
   update(dt) {
     this.player.update(dt,this.input.axis(),this.gravity);
-    this.platformManager.update(dt,this.level.level);
+    this.platformManager.update(dt,this.level.level,this.difficulty);
     const landing=findLanding(this.player,this.platformManager.platforms);
     if(landing) {
       const power=landing.item==="spring"?1.6:1;this.player.land(landing,power);this.audio.tone(power>1?720:280,.055,"triangle");this.particles.burst(this.player.x+41,landing.y,"#fff3c4",9,90);
@@ -88,8 +89,8 @@ export class Game {
   drawLevelBanner(){this.ctx.save();this.ctx.globalAlpha=Math.min(1,this.levelBanner*2);this.ctx.fillStyle="#102a42dc";this.ctx.fillRect(58,276,364,118);this.ctx.textAlign="center";this.ctx.fillStyle="#ffd65c";this.ctx.font="900 18px sans-serif";this.ctx.fillText("LEVEL UP!",240,307);this.ctx.fillStyle="#fff";this.ctx.font="900 31px sans-serif";this.ctx.fillText(`Lv.${this.level.level} ${this.level.name}`,240,344);this.ctx.font="600 14px sans-serif";this.ctx.fillText(this.level.description,240,371);this.ctx.restore();}
   drawDebug(){this.ctx.save();this.ctx.fillStyle="#06111ddd";this.ctx.fillRect(10,96,190,120);this.ctx.fillStyle="#b7ff8b";this.ctx.font="12px monospace";const lines=[`FPS ${this.fps.toFixed(0)}`,`STATE ${this.player.state}`,`VX ${this.player.velocityX.toFixed(1)}`,`VY ${this.player.velocityY.toFixed(1)}`,`JUMP ${this.player.jumpPower}`,`CAMERA ${this.distance.toFixed(0)}`,`PLATFORMS ${this.platformManager.platforms.length}`,`GRAVITY ${this.gravity}`];lines.forEach((line,i)=>this.ctx.fillText(line,19,113+i*14));this.ctx.restore();}
   loop(time){const raw=(time-this.lastTime)/1000;this.lastTime=time;this.fps=this.fps*.9+(raw?1/raw:60)*.1;if(this.state===GameState.PLAYING)this.update(limitDelta(raw)*(this.slowMotion>0?.45:1));this.render();requestAnimationFrame(t=>this.loop(t));}
-  showStart(){showStart(this.overlay,this.best,"assets/sprites/level1/idle.png",this.playerName);this.syncButtons();}
-  capturePlayerName(){const input=this.overlay.querySelector("#playerName");const name=(input?.value||"").trim();if(!name){input?.setCustomValidity("이름을 입력해 주세요.");input?.reportValidity();input?.focus();return false;}this.playerName=name.slice(0,12);this.save(STORAGE_KEYS.playerName,this.playerName);return true;}
+  showStart(){showStart(this.overlay,this.best,"assets/sprites/level1/idle.png",this.playerName,this.difficulty);this.syncButtons();}
+  capturePlayerName(){const input=this.overlay.querySelector("#playerName");const name=(input?.value||"").trim();if(!name){input?.setCustomValidity("이름을 입력해 주세요.");input?.reportValidity();input?.focus();return false;}this.playerName=name.slice(0,12);this.difficulty=this.overlay.querySelector('input[name="difficulty"]:checked')?.value||"normal";this.save(STORAGE_KEYS.playerName,this.playerName);this.save(STORAGE_KEYS.difficulty,this.difficulty);return true;}
   addRecord(){const record={name:this.playerName,score:this.score,level:this.level.level,date:new Date().toISOString()};this.records=[...this.records,record].sort((a,b)=>b.score-a.score).slice(0,20);this.save(STORAGE_KEYS.records,JSON.stringify(this.records));}
   syncButtons(){document.querySelector("#muteButton").textContent=this.audio.muted?"×":"♪";}
   loadNumber(key){try{return Number(localStorage.getItem(key))||0;}catch{return 0;}}

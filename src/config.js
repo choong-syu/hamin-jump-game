@@ -7,6 +7,11 @@ export const SPRITE_STATES = ["idle","jump","rise","fall","landing","crouch"];
 export const PHYSICS = { gravity:1800, baseJumpPower:650, maxFallSpeed:950, horizontalAcceleration:1800, horizontalDeceleration:2200, maxHorizontalSpeed:300, airControl:.9 };
 export const PLAYER_RENDER_SIZE = 82;
 export const PLAYER_HITBOX = { offsetX:18, offsetY:14, width:46, height:64 };
+export const GAME_DIFFICULTIES = Object.freeze({
+  beginner:{id:"beginner",name:"초급",gapScale:.82,widthBonus:22,movingScale:.55,breakScale:.35},
+  normal:{id:"normal",name:"중급",gapScale:1,widthBonus:0,movingScale:1,breakScale:1},
+  advanced:{id:"advanced",name:"고급",gapScale:1.08,widthBonus:-10,movingScale:1.3,breakScale:1.35}
+});
 export const CHARACTER_LEVELS = [
   {level:1,name:"아기 토끼",scoreRequired:0,spriteFolder:"level1",moveSpeed:220,jumpPower:650,description:"작고 귀여운 첫 모험가"},
   {level:2,name:"토끼",scoreRequired:500,spriteFolder:"level2",moveSpeed:230,jumpPower:665,description:"빨간 목도리와 함께"},
@@ -29,7 +34,7 @@ export const DIFFICULTY = [
   {gapMin:102,gapMax:132,movingChance:.40,breakChance:.25},{gapMin:104,gapMax:134,movingChance:.42,breakChance:.26},
   {gapMin:106,gapMax:136,movingChance:.44,breakChance:.27},{gapMin:108,gapMax:138,movingChance:.46,breakChance:.28}
 ];
-export const STORAGE_KEYS = { bestScore:"animalJump.bestScore", soundMuted:"animalJump.soundMuted", highestLevel:"animalJump.highestLevel", playerName:"animalJump.playerName", records:"animalJump.records" };
+export const STORAGE_KEYS = { bestScore:"animalJump.bestScore", soundMuted:"animalJump.soundMuted", highestLevel:"animalJump.highestLevel", playerName:"animalJump.playerName", records:"animalJump.records", difficulty:"animalJump.difficulty" };
 export const clamp = (value,min,max) => Math.max(min,Math.min(max,value));
 export const rand = (min,max) => min + Math.random() * (max-min);
 export function getLevelForScore(score) { return CHARACTER_LEVELS.reduce((result,data) => score >= data.scoreRequired ? data : result, CHARACTER_LEVELS[0]); }
