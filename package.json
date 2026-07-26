@@ -1,0 +1,10 @@
+{
+  "name": "animal-jump-game",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "python -m http.server 8000",
+    "check": "node --check src/Game.js && node --check src/entities/Player.js"
+  }
+}
