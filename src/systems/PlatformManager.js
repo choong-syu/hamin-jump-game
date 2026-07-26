@@ -31,6 +31,9 @@ export class PlatformManager {
     const choose=(minimum,chance,name)=>{if(type==="normal"&&level>=minimum&&roll>=cursor&&roll<cursor+chance)type=name;cursor+=chance;};
     choose(12,.055,"rainbow");choose(10,.06,"rocket");choose(9,.075,"pulse");choose(8,.09,"ice");choose(7,.075,"cloud");choose(6,.07,"vanishing");choose(5,.09,"conveyor");
     choose(4,breakChance,"breakable");choose(3,movingChance,"moving");
+    // 연속 사라짐 발판은 표시 주기가 엇갈릴 때 통과 불가능한 구간을 만들 수 있다.
+    // 바로 앞 발판이 사라짐 발판이면 이번 발판은 항상 일반 발판으로 보장한다.
+    if(last.type==="vanishing"&&type==="vanishing")type="normal";
     let item=null;const itemRoll=this.random();if(itemRoll<.07)item="star";else if(itemRoll<.10)item="spring";else if(level>=4&&itemRoll<.12)item="wings";else if(level>=6&&itemRoll<.135)item="shield";else if(level>=7&&itemRoll<.15)item="gem";else if(level>=8&&itemRoll<.163)item="feather";
     return new Platform({x,y:last.y-gap,width,type,speed:type==="moving"?this.range(35,65):0,direction:this.random()<.5?-1:1,item,phase:this.range(0,6)});
   }
