@@ -44,7 +44,7 @@ export class Game {
     if(this.debug&&action==="KeyR")this.start();
   }
   start() {
-    this.state=GameState.PLAYING;this.overlay.innerHTML="";this.player.reset();this.level=CHARACTER_LEVELS[0];this.player.setLevel(this.level);
+    this.state=GameState.PLAYING;this.overlay.classList.remove("start-background");this.overlay.innerHTML="";this.player.reset();this.level=CHARACTER_LEVELS[0];this.player.setLevel(this.level);
     this.platformManager.reset(this.difficulty);this.distance=0;this.bonusScore=0;this.score=0;this.levelBanner=0;this.player.land(this.platformManager.platforms[0]);this.syncButtons();
   }
   togglePause(){if(this.state===GameState.PLAYING){this.state=GameState.PAUSED;this.overlay.innerHTML='<div class="card"><h2>잠시 쉬어가요</h2><button class="primary" data-action="pause">계속하기</button></div>';}else if(this.state===GameState.PAUSED){this.state=GameState.PLAYING;this.overlay.innerHTML="";}}
