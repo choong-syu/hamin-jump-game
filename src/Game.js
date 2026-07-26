@@ -14,7 +14,7 @@ import { showStart, showCodex, showRaceLobby } from "./ui/StartScreen.js";
 import { showGameOver } from "./ui/GameOverScreen.js";
 import { RaceManager } from "./RaceManager.js";
 import { AccountManager } from "./AccountManager.js";
-import { CONSUMABLES, UPGRADES } from "./StoreCatalog.js";
+import { CONSUMABLES } from "./StoreCatalog.js";
 import { showAuth, showRecords, showStore, showWallet } from "./ui/AccountScreens.js";
 
 export class Game {
@@ -41,19 +41,19 @@ export class Game {
     });
     this.lastTime=performance.now();this.overlay.addEventListener("click",e=>{const target=e.target.closest("[data-action]");if(target)this.action(target.dataset.action,target.dataset.id);});
     this.overlay.addEventListener("change",e=>{if(e.target.dataset.action==="raceDifficulty")this.race.setDifficulty(e.target.value);});
-    this.overlay.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.matches("#authName,#authPassword")){const button=this.overlay.querySelector("[data-action='login'],[data-action='signup']");if(button)this.action(button.dataset.action);}});
+    this.overlay.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.matches("#loginName,#loginPassword,#signupName,#signupPassword"))this.action(e.target.id.startsWith("login")?"login":"signup");});
   }
   async init() {
     this.overlay.innerHTML='<div class="card"><h2>Loading 0%</h2><p>동물 친구들이 준비 중이에요…</p></div>';
     await this.assets.loadAll(progress=>{this.overlay.querySelector("h2").textContent=`Loading ${Math.round(progress*100)}%`;});
-    this.state=GameState.START;if(this.accounts.current)this.showStart();else this.showAuth();requestAnimationFrame(time=>this.loop(time));
+    await this.accounts.restore();this.state=GameState.START;if(this.accounts.current)this.showStart();else this.showAuth();requestAnimationFrame(time=>this.loop(time));
   }
   action(action,targetId="") {
     this.audio.unlock();
     if(["records","wallet","store"].includes(action)){this.openAccountPanel(action);return;}
     if(action==="closePanel"){this.closeAccountPanel();return;}
-    if(["login","signup","showLogin","showSignup"].includes(action)){this.handleAuth(action);return;}
-    if(action==="logout"){this.accounts.logout();this.playerName="";this.race.destroy();this.showAuth();return;}
+    if(["login","signup"].includes(action)){this.handleAuth(action);return;}
+    if(action==="logout"){this.handleLogout();return;}
     if(action==="buyUpgrade"){this.buyFromStore("upgrade",targetId);return;}
     if(action==="buyItem"){this.buyFromStore("item",targetId);return;}
     if(action.startsWith("use:")){this.useInventory(action.slice(4));return;}
@@ -117,7 +117,13 @@ export class Game {
   }
   levelUp(next){this.level=next;this.player.setLevel(next);this.applyUpgrades(false);this.levelBanner=1.2;this.slowMotion=.35;this.particles.burst(240,330,"#fff06d",40,220);this.audio.tone(880,.25,"sine");}
   forceLevel(number){this.level=CHARACTER_LEVELS[number-1];this.player.setLevel(this.level);this.levelBanner=1.2;}
-  gameOver(reason="구름 아래로\n살포시 착지!"){if(this.state===GameState.GAME_OVER)return;this.state=GameState.GAME_OVER;this.player.state=PlayerState.DEAD;this.lastCoinsEarned=this.accounts.addResult({score:this.score,level:this.level.level});this.best=this.accounts.current.bestScore;this.records=this.accounts.current.records;if(this.race.active)this.race.updateLocal({name:this.playerName,score:this.score,level:this.level.level,alive:false,altitude:Math.floor(this.distance)});this.particles.burst(this.player.x+40,760,"#fff",22,150);this.audio.tone(120,.5,"sawtooth");this.updateItemDock();showGameOver(this.overlay,this.score,this.best,this.level,this.playerName,this.records,reason,this.race.active?this.race.getPlayers():[],this.lastCoinsEarned);}
+  async gameOver(reason="구름 아래로\n살포시 착지!"){
+    if(this.state===GameState.GAME_OVER)return;this.state=GameState.GAME_OVER;this.player.state=PlayerState.DEAD;
+    if(this.race.active)this.race.updateLocal({name:this.playerName,score:this.score,level:this.level.level,alive:false,altitude:Math.floor(this.distance)});
+    try{this.lastCoinsEarned=await this.accounts.addResult({score:this.score,level:this.level.level});}catch(error){console.error(error);this.lastCoinsEarned=0;}
+    this.best=this.accounts.current?.bestScore||Math.max(this.best,this.score);this.records=this.accounts.current?.records||this.records;
+    this.particles.burst(this.player.x+40,760,"#fff",22,150);this.audio.tone(120,.5,"sawtooth");this.updateItemDock();showGameOver(this.overlay,this.score,this.best,this.level,this.playerName,this.records,reason,this.race.active?this.race.getPlayers():[],this.lastCoinsEarned);
+  }
   render() {
     this.drawBackground();this.platformManager.render(this.ctx,this.debug&&this.showBoxes);this.particles.render(this.ctx);
     if(this.race.active&&this.state===GameState.PLAYING)this.drawRaceGhosts();
@@ -150,20 +156,19 @@ export class Game {
   drawDebug(){this.ctx.save();this.ctx.fillStyle="#06111ddd";this.ctx.fillRect(10,96,190,120);this.ctx.fillStyle="#b7ff8b";this.ctx.font="12px monospace";const lines=[`FPS ${this.fps.toFixed(0)}`,`STATE ${this.player.state}`,`VX ${this.player.velocityX.toFixed(1)}`,`VY ${this.player.velocityY.toFixed(1)}`,`JUMP ${this.player.jumpPower}`,`CAMERA ${this.distance.toFixed(0)}`,`PLATFORMS ${this.platformManager.platforms.length}`,`GRAVITY ${this.gravity}`];lines.forEach((line,i)=>this.ctx.fillText(line,19,113+i*14));this.ctx.restore();}
   loop(time){const raw=(time-this.lastTime)/1000;this.lastTime=time;this.fps=this.fps*.9+(raw?1/raw:60)*.1;if(this.state===GameState.PLAYING)this.update(limitDelta(raw)*(this.slowMotion>0?.45:1));this.render();requestAnimationFrame(t=>this.loop(t));}
   showStart(){if(!this.accounts.current){this.showAuth();return;}this.playerName=this.accounts.current.username;this.best=this.accounts.current.bestScore;this.records=this.accounts.current.records;showStart(this.overlay,this.best,"assets/sprites/level1/idle.png",this.accounts.current,this.difficulty);this.syncButtons();this.updateItemDock();}
-  showAuth(options={}){showAuth(this.overlay,{hasAccounts:this.accounts.hasAccounts(),mode:this.accounts.hasAccounts()?"login":"signup",...options});this.syncButtons();}
+  showAuth(options={}){showAuth(this.overlay,options);this.syncButtons();}
   captureDifficulty(){this.difficulty=this.overlay.querySelector('input[name="difficulty"]:checked')?.value||this.difficulty||"normal";this.save(STORAGE_KEYS.difficulty,this.difficulty);}
   async handleAuth(action){
-    if(action==="showLogin"){this.showAuth({mode:"login"});return;}
-    if(action==="showSignup"){this.showAuth({mode:"signup"});return;}
-    const name=this.overlay.querySelector("#authName")?.value||"",password=this.overlay.querySelector("#authPassword")?.value||"";
+    const name=this.overlay.querySelector(`#${action}Name`)?.value||"",password=this.overlay.querySelector(`#${action}Password`)?.value||"";
     try{if(action==="signup")await this.accounts.signup(name,password);else await this.accounts.login(name,password);this.playerName=this.accounts.current.username;this.best=this.accounts.current.bestScore;this.records=this.accounts.current.records;this.state=GameState.START;this.showStart();}
-    catch(error){this.showAuth({mode:action==="signup"?"signup":"login",message:error.message});}
+    catch(error){this.showAuth({target:action,message:error.message});}
   }
-  openAccountPanel(kind){
+  async handleLogout(){await this.accounts.logout();this.playerName="";this.race.destroy();this.state=GameState.START;this.showAuth();}
+  async openAccountPanel(kind){
     const account=this.accounts.current;if(!account)return;
     if(!this.panelContext)this.panelContext={state:this.state,html:this.overlay.innerHTML,startBackground:this.overlay.classList.contains("start-background")};
     if(this.state===GameState.PLAYING&&!this.race.active)this.state=GameState.PAUSED;
-    if(kind==="records")showRecords(this.overlay,account);
+    if(kind==="records"){let leaderboard=[];try{leaderboard=await this.accounts.leaderboard();}catch{}showRecords(this.overlay,account,leaderboard);}
     if(kind==="wallet")showWallet(this.overlay,account);
     if(kind==="store")showStore(this.overlay,account);
   }
@@ -171,18 +176,18 @@ export class Game {
     if(!this.panelContext){this.showStart();return;}
     const context=this.panelContext;this.panelContext=null;this.state=context.state;this.overlay.innerHTML=context.html;this.overlay.classList.toggle("start-background",context.startBackground);
   }
-  buyFromStore(kind,id){
+  async buyFromStore(kind,id){
     if(!id)return;
-    let success=false;
-    if(kind==="upgrade"){const item=UPGRADES.find(entry=>entry.id===id),level=this.accounts.current.upgrades[id]||0;if(item&&level<item.maxLevel)success=this.accounts.buyUpgrade(id,item.costs[level],item.maxLevel);}
-    else{const item=CONSUMABLES.find(entry=>entry.id===id);if(item)success=this.accounts.buyItem(id,item.cost);}
-    showStore(this.overlay,this.accounts.current,success?"구매했습니다!":"코인이 부족하거나 더 이상 강화할 수 없습니다.");this.updateItemDock();
+    try{if(kind==="upgrade")await this.accounts.buyUpgrade(id);else await this.accounts.buyItem(id);showStore(this.overlay,this.accounts.current,"구매했습니다!");}
+    catch(error){showStore(this.overlay,this.accounts.current,error.message);}
+    this.updateItemDock();
   }
   applyUpgrades(includeShield=true){
     const upgrades=this.accounts.current?.upgrades||{};this.player.jumpPower*=1+(upgrades.jump||0)*.04;this.player.moveSpeed*=1+(upgrades.speed||0)*.05;if(includeShield&&upgrades.shield)this.player.shield=true;
   }
-  useInventory(id){
-    if(this.state!==GameState.PLAYING||!this.accounts.consume(id))return;
+  async useInventory(id){
+    if(this.state!==GameState.PLAYING)return;
+    try{await this.accounts.consume(id);}catch{return;}
     if(id==="rocket"){this.player.velocityY=-1500;this.bonusScore+=50;this.particles.burst(this.player.x+41,this.player.y+80,"#ff9c42",35,240);}
     if(id==="wings")this.player.wings=Math.max(this.player.wings,6);
     if(id==="shield")this.player.shield=true;

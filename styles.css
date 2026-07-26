@@ -84,7 +84,15 @@ p { line-height: 1.6; }
 .item-dock button > span { font-weight: 1000; }
 .item-dock button:disabled { opacity: .38; filter: grayscale(1); }
 .item-dock small { position: absolute; right: -3px; bottom: -3px; display: grid; width: 18px; height: 18px; place-items: center; border-radius: 50%; color: #fff; background: #e85c45; font-size: 10px; }
-.auth-card { max-width: 370px; }
+.auth-card { width: min(100%, 440px); max-width: 440px; padding: 20px; }
+.auth-card > h1 { font-size: clamp(27px,7vw,38px); letter-spacing: -.05em; }
+.auth-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.auth-form { padding: 13px; border-radius: 18px; background: #ffffffc7; }
+.auth-form h2 { font-size: 21px; }
+.auth-form > p { min-height: 38px; margin: 0; color: #60727c; font-size: 11px; line-height: 1.45; }
+.auth-form .name-field { margin: 9px 0; }
+.auth-form .name-field input { height: 42px; padding: 0 10px; font-size: 13px; }
+.auth-form .primary { min-height: 44px; font-size: 13px; }
 .local-account-note { display: block; margin-top: 16px; color: #657781; font-size: 11px; line-height: 1.5; }
 .form-message { min-height: 20px; margin: 7px 0; color: #c8493d; font-size: 12px; font-weight: 800; }
 .profile-card { width: min(100%, 420px); max-height: 88vh; overflow: auto; }
@@ -104,4 +112,5 @@ p { line-height: 1.6; }
 .shop-item button { min-width: 82px; min-height: 38px; padding: 5px 8px; border: 0; border-radius: 11px; color: #fff; background: #ec704e; font-size: 11px; font-weight: 900; }
 .shop-item button:disabled { color: #839198; background: #d7e0e2; }
 @media (hover:hover) and (pointer:fine) { .touch-hint { display: none; } }
+@media (max-width: 410px) { .auth-columns { grid-template-columns: 1fr; } .auth-card { max-height: 94vh; overflow: auto; } .auth-form > p { min-height: 0; } }
 @media (max-height: 700px) { .card { padding: 18px; } .preview { width: 78px; height: 78px; } .controls { margin: 8px 0; } }

@@ -2,15 +2,16 @@ import { CONSUMABLES, UPGRADES } from "../StoreCatalog.js";
 
 const escapeHtml=value=>{const node=document.createElement("div");node.textContent=value;return node.innerHTML;};
 
-export function showAuth(overlay,{hasAccounts=false,mode="login",message=""}={}){
+export function showAuth(overlay,{message="",target=""}={}){
   overlay.classList.add("start-background");
-  const login=mode==="login"&&hasAccounts;
-  overlay.innerHTML=`<div class="card auth-card"><p class="eyebrow">HAMIN JUMP CLUB</p><h1>${login?"로그인":"회원가입"}</h1><p>${login?"내 모험 기록과 지갑을 불러와요.":"나만의 모험가 계정을 만들어요."}</p><label class="name-field">모험가 이름<input id="authName" maxlength="12" autocomplete="username" placeholder="2~12자"></label><label class="name-field">비밀번호<input id="authPassword" type="password" maxlength="30" autocomplete="${login?"current-password":"new-password"}" placeholder="4자 이상"></label><p class="form-message">${escapeHtml(message)}</p><button class="primary" data-action="${login?"login":"signup"}">${login?"로그인":"계정 만들기"}</button>${hasAccounts?`<button class="secondary" data-action="${login?"showSignup":"showLogin"}">${login?"새 계정 만들기":"기존 계정 로그인"}</button>`:""}<small class="local-account-note">계정과 비밀번호 정보는 현재 브라우저에만 저장됩니다.</small></div>`;
+  const form=(kind,title,description)=>`<section class="auth-form"><h2>${title}</h2><p>${description}</p><label class="name-field">모험가 이름<input id="${kind}Name" maxlength="12" autocomplete="username" placeholder="2~12자"></label><label class="name-field">비밀번호<input id="${kind}Password" type="password" maxlength="30" autocomplete="${kind==="login"?"current-password":"new-password"}" placeholder="4자 이상"></label><p class="form-message">${target===kind?escapeHtml(message):""}</p><button class="primary" data-action="${kind}">${title}</button></section>`;
+  overlay.innerHTML=`<div class="card auth-card"><p class="eyebrow">HAMIN JUMP CLUB</p><h1>하민이의 점프 게임</h1><div class="auth-columns">${form("login","로그인","어느 기기에서든 내 계정을 불러와요.")}${form("signup","회원가입","새 모험가 계정을 만들어요.")}</div><small class="local-account-note">계정·코인·기록은 Vercel의 공용 데이터 서버에 안전하게 저장됩니다.</small></div>`;
 }
 
-export function showRecords(overlay,account){
+export function showRecords(overlay,account,leaderboard=[]){
   const rows=account.records.slice(0,10).map((record,index)=>`<li><strong>${index+1}</strong><span>Lv.${record.level} · ${new Date(record.date).toLocaleDateString("ko-KR")}</span><strong>${record.score.toLocaleString()}</strong></li>`).join("");
-  panel(overlay,"나의 기록",`<div class="profile-summary"><span>최고 점수</span><strong>${account.bestScore.toLocaleString()}</strong></div><ol class="record-list">${rows||"<li class='empty-row'>아직 기록이 없습니다.</li>"}</ol>`);
+  const globalRows=leaderboard.map((record,index)=>`<li><strong>${index+1}</strong><span>${escapeHtml(record.username)}</span><strong>${record.score.toLocaleString()}</strong></li>`).join("");
+  panel(overlay,"나의 기록",`<div class="profile-summary"><span>최고 점수</span><strong>${account.bestScore.toLocaleString()}</strong></div><h3>내 기록</h3><ol class="record-list">${rows||"<li class='empty-row'>아직 기록이 없습니다.</li>"}</ol><h3>전체 랭킹</h3><ol class="record-list">${globalRows||"<li class='empty-row'>첫 번째 기록의 주인공이 되어보세요!</li>"}</ol>`);
 }
 
 export function showWallet(overlay,account){
