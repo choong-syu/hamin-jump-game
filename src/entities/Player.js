@@ -2,7 +2,7 @@ import { GAME_WIDTH, PHYSICS, PLAYER_HITBOX, PLAYER_RENDER_SIZE, PlayerState } f
 
 export class Player {
   constructor() { this.width=this.height=PLAYER_RENDER_SIZE; this.hitbox=PLAYER_HITBOX; this.reset(); }
-  reset() { this.x=199;this.y=640;this.previousY=this.y;this.velocityX=0;this.velocityY=0;this.state=PlayerState.IDLE;this.stateTime=0;this.facing="right";this.jumpPower=650;this.moveSpeed=220;this.wings=0;this.shield=false; }
+  reset() { this.x=199;this.y=640;this.previousY=this.y;this.velocityX=0;this.velocityY=0;this.state=PlayerState.IDLE;this.stateTime=0;this.facing="right";this.jumpPower=650;this.moveSpeed=220;this.wings=0;this.feather=0;this.shield=false; }
   setLevel(data) { this.level=data.level;this.moveSpeed=data.moveSpeed;this.jumpPower=data.jumpPower; }
   update(dt,axis,gravity=true) {
     this.previousY=this.y;this.stateTime+=dt;
@@ -11,7 +11,7 @@ export class Player {
     else { const decel=PHYSICS.horizontalDeceleration*dt;this.velocityX=Math.abs(this.velocityX)<=decel?0:this.velocityX-Math.sign(this.velocityX)*decel; }
     this.velocityX=Math.max(-this.moveSpeed,Math.min(this.moveSpeed,this.velocityX));
     if(this.wings>0) { this.wings-=dt;this.velocityY=-115; }
-    else if(gravity) this.velocityY=Math.min(PHYSICS.maxFallSpeed,this.velocityY+PHYSICS.gravity*dt);
+    else if(gravity){if(this.feather>0)this.feather-=dt;const gravityScale=this.feather>0&&this.velocityY>0?.42:1;this.velocityY=Math.min(PHYSICS.maxFallSpeed,this.velocityY+PHYSICS.gravity*gravityScale*dt);}
     this.x+=this.velocityX*dt;this.y+=this.velocityY*dt;
     if(this.x+this.width<0)this.x=GAME_WIDTH;if(this.x>GAME_WIDTH)this.x=-this.width;
     if(this.stateTime>.08) this.state=this.velocityY<-80?PlayerState.RISE:this.velocityY>80?PlayerState.FALL:this.state;

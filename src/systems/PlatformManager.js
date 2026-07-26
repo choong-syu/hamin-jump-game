@@ -26,8 +26,11 @@ export class PlatformManager {
     const maxDx=level===1?Math.min(90,reachable):reachable;
     let x=Math.max(20,Math.min(460-width,last.x+rand(-maxDx,maxDx)));
     const breakChance=d.breakChance*modifier.breakScale,movingChance=d.movingChance*modifier.movingScale;
-    const roll=Math.random();let type=roll<breakChance?"breakable":roll<breakChance+movingChance?"moving":level>=6&&roll>.92?"vanishing":"normal";
-    let item=null;const itemRoll=Math.random();if(itemRoll<.08)item="star";else if(itemRoll<.11)item="spring";else if(level>=4&&itemRoll<.125)item="wings";else if(level>=6&&itemRoll<.135)item="shield";
+    const roll=Math.random();let cursor=0,type="normal";
+    const choose=(minimum,chance,name)=>{if(type==="normal"&&level>=minimum&&roll>=cursor&&roll<cursor+chance)type=name;cursor+=chance;};
+    choose(12,.055,"rainbow");choose(10,.06,"rocket");choose(9,.075,"pulse");choose(8,.09,"ice");choose(7,.075,"cloud");choose(6,.07,"vanishing");choose(5,.09,"conveyor");
+    choose(4,breakChance,"breakable");choose(3,movingChance,"moving");
+    let item=null;const itemRoll=Math.random();if(itemRoll<.07)item="star";else if(itemRoll<.10)item="spring";else if(level>=4&&itemRoll<.12)item="wings";else if(level>=6&&itemRoll<.135)item="shield";else if(level>=7&&itemRoll<.15)item="gem";else if(level>=8&&itemRoll<.163)item="feather";else if(level>=9&&mode==="advanced"&&itemRoll<.176)item="clock";
     return new Platform({x,y:last.y-gap,width,type,speed:type==="moving"?rand(35,65):0,item});
   }
   update(dt,level,mode="normal"){this.platforms.forEach(p=>p.update(dt));this.platforms=this.platforms.filter(p=>p.y<GAME_HEIGHT+90&&p.active);let top=this.platforms.reduce((a,b)=>a.y<b.y?a:b);while(top.y>-80){top=this.createAbove(top,level,mode);this.platforms.push(top);}}

@@ -19,6 +19,7 @@ export class Game {
     this.state=GameState.LOADING;this.player=new Player();this.platformManager=new PlatformManager();this.particles=new ParticleSystem();
     this.distance=0;this.bonusScore=0;this.score=0;this.level=CHARACTER_LEVELS[0];this.levelBanner=0;this.slowMotion=0;
     this.advancedStallTimer=0;this.pressureDistance=0;this.visitedPlatforms=new WeakSet();
+    this.windTimer=0;this.windDirection=1;
     this.debug=new URLSearchParams(location.search).get("debug")==="true";this.showBoxes=this.debug;this.gravity=true;this.fps=0;this.best=this.loadNumber(STORAGE_KEYS.bestScore);
     this.playerName=this.loadText(STORAGE_KEYS.playerName);this.records=this.loadRecords();
     this.difficulty=GAME_DIFFICULTIES[this.loadText(STORAGE_KEYS.difficulty)]?.id||"normal";
@@ -39,6 +40,9 @@ export class Game {
     if(action==="KeyP"||action==="pause"){this.togglePause();return;}
     if(action==="KeyM"||action==="mute"){this.audio.toggle();this.save(STORAGE_KEYS.soundMuted,this.audio.muted);this.syncButtons();return;}
     if(this.debug&&/^Digit[1-9]$/.test(action)){this.forceLevel(Number(action.at(-1)));return;}
+    if(this.debug&&action==="Digit0"){this.forceLevel(10);return;}
+    if(this.debug&&action==="Minus"){this.forceLevel(11);return;}
+    if(this.debug&&action==="Equal"){this.forceLevel(12);return;}
     if(this.debug&&action==="KeyL"){const next=CHARACTER_LEVELS[Math.min(7,this.level.level)];if(next)this.bonusScore=Math.max(this.bonusScore,next.scoreRequired+1-this.distance/10);return;}
     if(this.debug&&action==="KeyG")this.gravity=!this.gravity;
     if(this.debug&&action==="KeyB")this.showBoxes=!this.showBoxes;
@@ -46,7 +50,7 @@ export class Game {
   }
   start() {
     this.state=GameState.PLAYING;this.overlay.classList.remove("start-background");this.overlay.innerHTML="";this.player.reset();this.level=CHARACTER_LEVELS[0];this.player.setLevel(this.level);
-    this.platformManager.reset(this.difficulty);this.distance=0;this.bonusScore=0;this.score=0;this.levelBanner=0;this.advancedStallTimer=0;this.pressureDistance=0;this.visitedPlatforms=new WeakSet();this.visitedPlatforms.add(this.platformManager.platforms[0]);this.player.land(this.platformManager.platforms[0]);this.syncButtons();
+    this.platformManager.reset(this.difficulty);this.distance=0;this.bonusScore=0;this.score=0;this.levelBanner=0;this.advancedStallTimer=0;this.pressureDistance=0;this.windTimer=0;this.windDirection=Math.random()<.5?-1:1;this.visitedPlatforms=new WeakSet();this.visitedPlatforms.add(this.platformManager.platforms[0]);this.player.land(this.platformManager.platforms[0]);this.syncButtons();
   }
   togglePause(){if(this.state===GameState.PLAYING){this.state=GameState.PAUSED;this.overlay.innerHTML='<div class="card"><h2>잠시 쉬어가요</h2><button class="primary" data-action="pause">계속하기</button></div>';}else if(this.state===GameState.PAUSED){this.state=GameState.PLAYING;this.overlay.innerHTML="";}}
   update(dt) {
@@ -57,13 +61,18 @@ export class Game {
       this.pressureDistance+=pressure;
     }
     this.player.update(dt,this.input.axis(),this.gravity);
+    if(this.level.level>=11){this.windTimer+=dt;if(this.windTimer>4){this.windTimer=0;this.windDirection*=-1;}this.player.velocityX+=this.windDirection*90*dt;}
     this.platformManager.update(dt,this.level.level,this.difficulty);
     const landing=findLanding(this.player,this.platformManager.platforms);
     if(landing) {
-      const power=landing.item==="spring"?1.6:1;this.player.land(landing,power);this.audio.tone(power>1?720:280,.055,"triangle");this.particles.burst(this.player.x+41,landing.y,"#fff3c4",9,90);
+      const power=landing.type==="rocket"?1.85:landing.type==="rainbow"?1.35:landing.item==="spring"?1.6:1;this.player.land(landing,power);this.audio.tone(power>1?720:280,.055,"triangle");this.particles.burst(this.player.x+41,landing.y,"#fff3c4",9,90);
       if(this.difficulty==="advanced"&&!this.visitedPlatforms.has(landing)){this.visitedPlatforms.add(landing);this.advancedStallTimer=0;}
       if(landing.type==="breakable")landing.breakTimer=.3;
+      if(landing.type==="cloud")landing.breakTimer=.18;
       if(landing.type==="moving")this.player.x+=landing.speed*landing.direction*dt*2;
+      if(landing.type==="conveyor")this.player.velocityX=landing.direction*this.player.moveSpeed*.92;
+      if(landing.type==="ice")this.player.velocityX=Math.max(-this.player.moveSpeed*1.2,Math.min(this.player.moveSpeed*1.2,this.player.velocityX*1.35));
+      if(landing.type==="rainbow"&&!landing.rewarded){landing.rewarded=true;this.bonusScore+=75;this.particles.burst(landing.x+landing.width/2,landing.y,"#ff78db",24,180);}
       if(landing.item){new Item(landing.item).apply(this);this.particles.burst(landing.x+landing.width/2,landing.y-10,"#ffd85a",15,150);landing.item=null;this.audio.tone(660,.12);}
     }
     const camera=updateCamera(this.player,this.platformManager);this.distance+=camera;
@@ -87,7 +96,7 @@ export class Game {
     this.drawBackground();this.platformManager.render(this.ctx,this.debug&&this.showBoxes);this.particles.render(this.ctx);
     const spriteState=this.player.state===PlayerState.DEAD?"fall":this.player.state;
     this.player.render(this.ctx,this.assets.get(this.level.level,spriteState),this.debug&&this.showBoxes);
-    if(this.state===GameState.PLAYING||this.state===GameState.PAUSED){drawHUD(this.ctx,this.score,Math.max(this.best,this.score),this.level);if(this.difficulty==="advanced")this.drawAdvancedPressure();}
+    if(this.state===GameState.PLAYING||this.state===GameState.PAUSED){drawHUD(this.ctx,this.score,Math.max(this.best,this.score),this.level);if(this.difficulty==="advanced")this.drawAdvancedPressure();if(this.level.level>=11)this.drawWind();}
     if(this.levelBanner>0)this.drawLevelBanner();
     if(this.debug)this.drawDebug();
   }
@@ -100,6 +109,7 @@ export class Game {
   }
   drawLevelBanner(){this.ctx.save();this.ctx.globalAlpha=Math.min(1,this.levelBanner*2);this.ctx.fillStyle="#102a42dc";this.ctx.fillRect(58,276,364,118);this.ctx.textAlign="center";this.ctx.fillStyle="#ffd65c";this.ctx.font="900 18px sans-serif";this.ctx.fillText("LEVEL UP!",240,307);this.ctx.fillStyle="#fff";this.ctx.font="900 31px sans-serif";this.ctx.fillText(`Lv.${this.level.level} ${this.level.name}`,240,344);this.ctx.font="600 14px sans-serif";this.ctx.fillText(this.level.description,240,371);this.ctx.restore();}
   drawAdvancedPressure(){const limit=GAME_DIFFICULTIES.advanced.stallLimit,remaining=Math.max(0,limit-this.advancedStallTimer);if(remaining>1.5)return;this.ctx.save();this.ctx.fillStyle="#8b1837dd";this.ctx.fillRect(82,94,316,48);this.ctx.fillStyle="#fff";this.ctx.textAlign="center";this.ctx.font="900 15px sans-serif";this.ctx.fillText(`위로 올라가세요! ${remaining.toFixed(1)}초`,240,115);this.ctx.fillStyle="#ffffff3d";this.ctx.fillRect(104,125,272,7);this.ctx.fillStyle="#ffd85a";this.ctx.fillRect(104,125,272*(remaining/1.5),7);this.ctx.restore();}
+  drawWind(){this.ctx.save();this.ctx.fillStyle="#ffffffb8";this.ctx.beginPath();this.ctx.roundRect(170,91,140,28,14);this.ctx.fill();this.ctx.fillStyle="#31536d";this.ctx.textAlign="center";this.ctx.font="800 12px sans-serif";this.ctx.fillText(this.windDirection>0?"바람  〰  오른쪽 ▶":"◀ 왼쪽  〰  바람",240,110);this.ctx.restore();}
   drawDebug(){this.ctx.save();this.ctx.fillStyle="#06111ddd";this.ctx.fillRect(10,96,190,120);this.ctx.fillStyle="#b7ff8b";this.ctx.font="12px monospace";const lines=[`FPS ${this.fps.toFixed(0)}`,`STATE ${this.player.state}`,`VX ${this.player.velocityX.toFixed(1)}`,`VY ${this.player.velocityY.toFixed(1)}`,`JUMP ${this.player.jumpPower}`,`CAMERA ${this.distance.toFixed(0)}`,`PLATFORMS ${this.platformManager.platforms.length}`,`GRAVITY ${this.gravity}`];lines.forEach((line,i)=>this.ctx.fillText(line,19,113+i*14));this.ctx.restore();}
   loop(time){const raw=(time-this.lastTime)/1000;this.lastTime=time;this.fps=this.fps*.9+(raw?1/raw:60)*.1;if(this.state===GameState.PLAYING)this.update(limitDelta(raw)*(this.slowMotion>0?.45:1));this.render();requestAnimationFrame(t=>this.loop(t));}
   showStart(){showStart(this.overlay,this.best,"assets/sprites/level1/idle.png",this.playerName,this.difficulty);this.syncButtons();}
