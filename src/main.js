@@ -4,6 +4,8 @@ const canvas=document.querySelector("#game");
 const game=new Game(canvas,document.querySelector("#overlay"));
 document.querySelector("#pauseButton").addEventListener("click",()=>game.action("pause"));
 document.querySelector("#muteButton").addEventListener("click",()=>game.action("mute"));
+document.querySelector("#accountActions").addEventListener("click",event=>{const action=event.target.closest("[data-global-action]")?.dataset.globalAction;if(action)game.action(action);});
+document.querySelector("#itemDock").addEventListener("click",event=>{const item=event.target.closest("[data-item]")?.dataset.item;if(item)game.action(`use:${item}`);});
 
 function resizeCanvasDisplay() {
   const scale=Math.min(innerWidth/480,innerHeight/800);

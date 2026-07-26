@@ -11,10 +11,16 @@
   <main class="game-shell" aria-label="하민이의 점프 게임">
     <canvas id="game" width="480" height="800" aria-label="동물 성장형 세로 점프 게임"></canvas>
     <section id="overlay" class="overlay" aria-live="polite"></section>
+    <nav id="accountActions" class="account-actions" aria-label="내 계정 메뉴">
+      <button type="button" data-global-action="records" aria-label="기록">기록</button>
+      <button type="button" data-global-action="wallet" aria-label="내 지갑">지갑</button>
+      <button type="button" data-global-action="store" aria-label="스토어">상점</button>
+    </nav>
     <div class="hud-actions">
       <button id="pauseButton" type="button" aria-label="일시정지">Ⅱ</button>
       <button id="muteButton" type="button" aria-label="음소거">♪</button>
     </div>
+    <div id="itemDock" class="item-dock" aria-label="보유 아이템"></div>
     <div class="touch-hint" aria-hidden="true"><span>◀ 왼쪽</span><span>오른쪽 ▶</span></div>
   </main>
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>

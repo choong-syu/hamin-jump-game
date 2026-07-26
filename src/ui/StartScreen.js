@@ -1,9 +1,9 @@
 import { CHARACTER_LEVELS } from "../config.js";
 
-export function showStart(overlay,best,preview,playerName="",difficulty="normal") {
+export function showStart(overlay,best,preview,account,difficulty="normal") {
   overlay.classList.add("start-background");
   const option=(id,name)=>`<label><input type="radio" name="difficulty" value="${id}" ${difficulty===id?"checked":""}><span>${name}</span></label>`;
-  overlay.innerHTML=`<div class="card"><p class="eyebrow">12 ANIMAL ADVENTURES</p><h1>하민이의<br>점프 게임</h1><img class="preview" src="${preview}" alt="아기 토끼"><label class="name-field">모험가 이름<input id="playerName" maxlength="12" autocomplete="nickname" placeholder="이름을 입력해 주세요" value="${escapeHtml(playerName)}"></label><fieldset class="difficulty-field"><span>게임 난이도</span><div class="difficulty-options">${option("beginner","초급")}${option("normal","중급")}${option("advanced","고급")}</div></fieldset><div class="button-row"><button class="primary" data-action="start">혼자 시작</button><button class="secondary" data-action="codex">캐릭터 도감</button></div><button class="secondary race-button" data-action="race">친구와 실시간 레이스</button><p class="controls">← → / A D 이동 · P 일시정지 · M 음소거<br>12종의 동물 친구로 성장해 보세요</p><strong>최고 점수 ${best.toLocaleString()}</strong></div>`;
+  overlay.innerHTML=`<div class="card"><p class="eyebrow">12 ANIMAL ADVENTURES</p><h1>하민이의<br>점프 게임</h1><img class="preview" src="${preview}" alt="아기 토끼"><div class="account-chip"><span>👤 ${escapeHtml(account.username)}</span><strong>🪙 ${account.coins.toLocaleString()}</strong><button data-action="logout">로그아웃</button></div><fieldset class="difficulty-field"><span>게임 난이도</span><div class="difficulty-options">${option("beginner","초급")}${option("normal","중급")}${option("advanced","고급")}</div></fieldset><div class="button-row"><button class="primary" data-action="start">혼자 시작</button><button class="secondary" data-action="codex">캐릭터 도감</button></div><button class="secondary race-button" data-action="race">친구와 실시간 레이스</button><p class="controls">← → / A D 이동 · P 일시정지 · M 음소거<br>점수가 그대로 내 코인이 됩니다!</p><strong>최고 점수 ${best.toLocaleString()}</strong></div>`;
 }
 
 export function showCodex(overlay) {
