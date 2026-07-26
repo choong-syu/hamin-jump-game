@@ -8,6 +8,5 @@ export class Item {
     if(this.type==="shield") game.player.shield=true;
     if(this.type==="gem") game.bonusScore+=250;
     if(this.type==="feather") game.player.feather=3.5;
-    if(this.type==="clock") game.advancedStallTimer=Math.max(0,game.advancedStallTimer-2.5);
   }
 }

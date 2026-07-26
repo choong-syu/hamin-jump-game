@@ -8,9 +8,9 @@ export const PHYSICS = { gravity:1800, baseJumpPower:650, maxFallSpeed:950, hori
 export const PLAYER_RENDER_SIZE = 82;
 export const PLAYER_HITBOX = { offsetX:18, offsetY:14, width:46, height:64 };
 export const GAME_DIFFICULTIES = Object.freeze({
-  beginner:{id:"beginner",name:"초급",gapScale:.82,widthBonus:22,movingScale:.55,breakScale:.35,screenRiseSpeed:0,stallLimit:0},
-  normal:{id:"normal",name:"중급",gapScale:1,widthBonus:0,movingScale:1,breakScale:1,screenRiseSpeed:0,stallLimit:0},
-  advanced:{id:"advanced",name:"고급",gapScale:1.08,widthBonus:-10,movingScale:1.3,breakScale:1.35,screenRiseSpeed:14,stallLimit:5}
+  beginner:{id:"beginner",name:"초급",gapScale:.82,widthBonus:22,movingScale:.55,breakScale:.35,screenRiseSpeed:0},
+  normal:{id:"normal",name:"중급",gapScale:1,widthBonus:0,movingScale:1,breakScale:1,screenRiseSpeed:0},
+  advanced:{id:"advanced",name:"고급",gapScale:1.08,widthBonus:-10,movingScale:1.3,breakScale:1.35,screenRiseSpeed:14}
 });
 export const CHARACTER_LEVELS = [
   {level:1,name:"아기 토끼",scoreRequired:0,spriteFolder:"level1",moveSpeed:220,jumpPower:650,description:"작고 귀여운 첫 모험가"},

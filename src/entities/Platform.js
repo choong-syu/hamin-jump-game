@@ -28,6 +28,5 @@ export class Platform {
     if(this.item==="shield") { ctx.font="23px serif";ctx.textAlign="center";ctx.fillText("🛡️",x,y+7); }
     if(this.item==="gem") { ctx.font="23px serif";ctx.textAlign="center";ctx.fillText("💎",x,y+7); }
     if(this.item==="feather") { ctx.font="23px serif";ctx.textAlign="center";ctx.fillText("🪶",x,y+7); }
-    if(this.item==="clock") { ctx.font="22px serif";ctx.textAlign="center";ctx.fillText("⏱️",x,y+7); }
   }
 }
