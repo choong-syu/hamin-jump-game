@@ -3,7 +3,15 @@ import { CHARACTER_LEVELS, SPRITE_STATES } from "./config.js";
 export class AssetLoader {
   constructor() { this.images = new Map(); this.progress = 0; }
   async loadAll(onProgress=()=>{}) {
-    const paths = CHARACTER_LEVELS.flatMap(level => SPRITE_STATES.map(state => ({ key:`${level.level}:${state}`, src:`assets/sprites/${level.spriteFolder}/${state}.png` })));
+    const characterPaths = CHARACTER_LEVELS.flatMap(level => SPRITE_STATES.map(state => ({ key:`${level.level}:${state}`, src:`assets/sprites/${level.spriteFolder}/${state}.png` })));
+    const bossPaths = [
+      {key:"boss:1",src:"assets/bosses/boss-storm.png"},
+      {key:"boss:2",src:"assets/bosses/boss-ember.png"},
+      {key:"boss:3",src:"assets/bosses/boss-clockwork.png"},
+      {key:"boss:4",src:"assets/bosses/boss-dragon.png"},
+      {key:"boss:missile",src:"assets/bosses/missile.png"}
+    ];
+    const paths = [...characterPaths,...bossPaths];
     let done = 0;
     const queue=[...paths];
     const load=({key,src},attempt=0)=>new Promise(resolve=>{
@@ -16,4 +24,6 @@ export class AssetLoader {
     await Promise.all(Array.from({length:6},worker));
   }
   get(level,state) { return this.images.get(`${level}:${state}`) || this.images.get(`${level}:idle`) || null; }
+  getBoss(index) { return this.images.get(`boss:${index}`) || null; }
+  getMissile() { return this.images.get("boss:missile") || null; }
 }
