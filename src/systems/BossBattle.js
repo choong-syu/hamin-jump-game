@@ -29,12 +29,14 @@ export class BossBattle {
     this.name=BOSS_NAMES[this.bossIndex-1];
     this.random=seededRandom((Number(seed)||1)+targetLevel.level*7919);
     const difficultyStep=difficulty==="advanced"?1:difficulty==="beginner"?-1:0;
-    this.totalWaves=Math.max(4,Math.min(11,4+Math.floor((targetLevel.level-2)*.55)+difficultyStep));
-    this.warningDuration=Math.max(.48,.9-targetLevel.level*.03-(difficulty==="advanced"?.06:difficulty==="beginner"?-.08:0));
-    this.waveInterval=Math.max(.76,1.34-targetLevel.level*.035-(difficulty==="advanced"?.08:difficulty==="beginner"?-.08:0));
-    this.missilesPerWave=targetLevel.level>=9?3:targetLevel.level>=5?2:1;
-    this.speedBase=230+targetLevel.level*15+(difficulty==="advanced"?28:difficulty==="beginner"?-22:0);
+    this.totalWaves=Math.max(5,Math.min(15,6+Math.floor((targetLevel.level-2)*.75)+difficultyStep));
+    this.warningDuration=Math.max(.36,.78-targetLevel.level*.03-(difficulty==="advanced"?.06:difficulty==="beginner"?-.08:0));
+    this.waveInterval=Math.max(.86,1.28-targetLevel.level*.025-(difficulty==="advanced"?.06:difficulty==="beginner"?-.08:0));
+    this.missilesPerWave=targetLevel.level>=10?4:targetLevel.level>=6?3:2;
+    this.speedBase=270+targetLevel.level*18+(difficulty==="advanced"?32:difficulty==="beginner"?-25:0);
     this.aimJitter=Math.max(5,34-targetLevel.level*2.2);
+    this.bossMoveSpeed=1.8+targetLevel.level*.13+(difficulty==="advanced"?.18:difficulty==="beginner"?-.12:0);
+    this.bossMoveAmplitude=Math.min(132,88+targetLevel.level*3.5);
     this.spawnedWaves=0;
     this.clearedMissiles=0;
     this.totalMissiles=0;
@@ -60,7 +62,7 @@ export class BossBattle {
 
   spawnWave(playerCenterX) {
     const center=clamp(playerCenterX+(this.random()-.5)*this.aimJitter*2,66,GAME_WIDTH-66);
-    const offsets=this.missilesPerWave===1?[0]:this.missilesPerWave===2?[-38,38]:[-66,0,66];
+    const offsets=this.missilesPerWave===1?[0]:this.missilesPerWave===2?[-32,32]:this.missilesPerWave===3?[-72,0,72]:[-105,-35,35,105];
     offsets.forEach((offset,index)=>{
       this.warnings.push({
         x:clamp(center+offset,28,GAME_WIDTH-28),
@@ -75,7 +77,7 @@ export class BossBattle {
 
   update(dt,playerBox) {
     this.elapsed+=dt;
-    this.bossX=240+Math.sin(this.elapsed*1.9)*108;
+    this.bossX=240+Math.sin(this.elapsed*this.bossMoveSpeed)*this.bossMoveAmplitude;
     if(this.victory){
       this.victoryTimer+=dt;
       return this.victoryTimer>=1.35?{complete:true}:null;

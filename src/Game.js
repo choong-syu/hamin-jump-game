@@ -29,7 +29,7 @@ export class Game {
     this.racePlayers=[];this.raceSyncTimer=0;
     this.raceMenuOpen=false;this.publicRooms=[];this.raceListTimer=null;
     this.accounts=new AccountManager();this.debug=new URLSearchParams(location.search).get("debug")==="true";this.showBoxes=this.debug;this.gravity=true;this.fps=0;
-    this.playerName=this.accounts.current?.username||"";this.best=this.accounts.current?.bestScore||0;this.records=this.accounts.current?.records||[];this.panelContext=null;this.lastCoinsEarned=0;
+    this.playerName=this.accounts.current?.username||"";this.best=this.accounts.current?.bestScore||0;this.records=this.accounts.current?.records||[];this.panelContext=null;this.lastCoinsEarned=0;this.consumablesUsed=0;this.itemUsePending=false;
     this.difficulty=GAME_DIFFICULTIES[this.loadText(STORAGE_KEYS.difficulty)]?.id||"normal";
     this.audio=new AudioManager(this.loadBoolean(STORAGE_KEYS.soundMuted));this.input=new InputManager(canvas,action=>this.action(action));
     this.race=new RaceManager({
@@ -86,7 +86,7 @@ export class Game {
   start(seed=null) {
     this.closeRaceMenu();
     this.state=GameState.PLAYING;this.overlay.classList.remove("start-background");this.overlay.innerHTML="";this.player.reset();this.level=CHARACTER_LEVELS[0];this.player.setLevel(this.level);
-    this.runSeed=Number(seed??Date.now());this.bossBattle=null;this.bossResumePlatform=null;this.clearedBosses.clear();
+    this.runSeed=Number(seed??Date.now());this.bossBattle=null;this.bossResumePlatform=null;this.clearedBosses.clear();this.consumablesUsed=0;this.itemUsePending=false;
     this.platformManager.reset(this.difficulty,seed);this.distance=0;this.bonusScore=0;this.score=0;this.levelBanner=0;this.pressureDistance=0;this.windTimer=0;this.windDirection=seed?(seed%2?1:-1):(Math.random()<.5?-1:1);this.raceSyncTimer=0;this.applyUpgrades();this.player.land(this.platformManager.platforms[0]);this.syncButtons();this.updateItemDock();
   }
   togglePause(){if(this.race.active)return;if(this.state===GameState.PLAYING||this.state===GameState.BOSS){this.pauseReturnState=this.state;this.state=GameState.PAUSED;this.overlay.innerHTML='<div class="card"><h2>잠시 쉬어가요</h2><button class="primary" data-action="pause">계속하기</button></div>';}else if(this.state===GameState.PAUSED){this.state=this.pauseReturnState;this.overlay.innerHTML="";}}
@@ -239,18 +239,22 @@ export class Game {
     const upgrades=this.accounts.current?.upgrades||{};this.player.jumpPower*=1+(upgrades.jump||0)*.04;this.player.moveSpeed*=1+(upgrades.speed||0)*.05;if(includeShield&&upgrades.shield)this.player.shield=true;
   }
   async useInventory(id){
-    if(this.state!==GameState.PLAYING)return;
-    try{await this.accounts.consume(id);}catch{return;}
-    if(id==="rocket"){this.player.velocityY=-1500;this.bonusScore+=50;this.particles.burst(this.player.x+41,this.player.y+80,"#ff9c42",35,240);}
-    if(id==="wings")this.player.wings=Math.max(this.player.wings,6);
-    if(id==="shield")this.player.shield=true;
-    if(id==="feather")this.player.feather=Math.max(this.player.feather,6);
-    this.audio.tone(780,.18,"sawtooth");this.updateItemDock();
+    if(this.state!==GameState.PLAYING||this.consumablesUsed>=2||this.itemUsePending)return;
+    this.itemUsePending=true;this.updateItemDock();
+    try{
+      await this.accounts.consume(id);this.consumablesUsed++;
+      if(id==="rocket"){this.player.velocityY=-1500;this.bonusScore+=50;this.particles.burst(this.player.x+41,this.player.y+80,"#ff9c42",35,240);}
+      if(id==="wings")this.player.wings=Math.max(this.player.wings,6);
+      if(id==="shield")this.player.shield=true;
+      if(id==="feather")this.player.feather=Math.max(this.player.feather,6);
+      this.audio.tone(780,.18,"sawtooth");
+    }catch{}finally{this.itemUsePending=false;this.updateItemDock();}
   }
   updateItemDock(){
     const dock=document.querySelector("#itemDock"),account=this.accounts.current;if(!dock)return;
     dock.classList.toggle("visible",this.state===GameState.PLAYING&&!!account);
-    dock.innerHTML=account?CONSUMABLES.map(item=>`<button data-item="${item.id}" ${(account.inventory[item.id]||0)<1?"disabled":""} aria-label="${item.name}"><span>${item.short}</span><small>${account.inventory[item.id]||0}</small></button>`).join(""):"";
+    const limitReached=this.consumablesUsed>=2||this.itemUsePending;
+    dock.innerHTML=account?`<div class="item-limit">사용 ${this.consumablesUsed}/2</div>${CONSUMABLES.map(item=>`<button data-item="${item.id}" ${(account.inventory[item.id]||0)<1||limitReached?"disabled":""} aria-label="${item.name}"><span>${item.short}</span><small>${account.inventory[item.id]||0}</small></button>`).join("")}`:"";
   }
   syncButtons(){document.querySelector("#muteButton").textContent=this.audio.muted?"×":"♪";document.querySelector("#accountActions").classList.toggle("visible",!!this.accounts.current);}
   loadNumber(key){try{return Number(localStorage.getItem(key))||0;}catch{return 0;}}
