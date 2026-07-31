@@ -125,7 +125,7 @@ export class RaceManager {
   }
 
   snapshot(status="") {
-    return{mode:"room",code:this.code,players:[...this.players.values()],isHost:this.isHost,difficulty:this.difficulty,status};
+    return{mode:"room",code:this.code,players:[...this.players.values()],isHost:this.isHost,difficulty:this.difficulty,status,started:this.startTriggered};
   }
 
   getPlayers(){return[...this.players.values()];}

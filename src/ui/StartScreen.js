@@ -16,7 +16,7 @@ function escapeHtml(value) {
   const node=document.createElement("div");node.textContent=value;return node.innerHTML;
 }
 
-export function showRaceLobby(overlay,{mode="menu",code="",players=[],rooms=[],isHost=false,difficulty="normal",status=""}={}) {
+export function showRaceLobby(overlay,{mode="menu",code="",players=[],rooms=[],isHost=false,started=false,difficulty="normal",status=""}={}) {
   overlay.classList.remove("start-background");
   const list=players.map((player,index)=>`<li><span>${index===0?"👑 ":""}${escapeHtml(player.name)}</span><span>${player.ready===false?"연결 중":"준비"}</span></li>`).join("");
   const difficultyName={beginner:"초급",normal:"중급",advanced:"고급"}[difficulty]||"중급";
@@ -28,6 +28,6 @@ export function showRaceLobby(overlay,{mode="menu",code="",players=[],rooms=[],i
   const publicRooms=`<div class="public-room-heading"><strong>참가 가능한 공개 방</strong><button class="mini-button" data-action="refreshRaces">새로고침</button></div><ul class="public-room-list">${roomRows||"<li class=\"empty-room\">현재 열린 방이 없습니다.<br>새 방을 만들어 친구를 기다려 보세요.</li>"}</ul>`;
   const body=mode==="menu"
     ? `<p>난이도를 고르고 공개 방을 만들거나, 아래 방에 바로 참가하세요.</p>${menuDifficulty}<p class="race-status">${escapeHtml(status)}</p><button class="primary" data-action="createRace">선택한 난이도로 방 만들기</button>${publicRooms}<div class="race-join"><input id="roomCode" maxlength="6" placeholder="6자리 방 코드" aria-label="방 코드"><button class="secondary" data-action="joinRace">코드 참가</button></div>`
-    : `<p>방 코드</p><div class="room-code">${escapeHtml(code)}</div>${raceDifficulty}<p class="race-status">${escapeHtml(status||"친구를 기다리는 중…")}</p><ul class="race-players">${list}</ul>${isHost?`<button class="primary" data-action="startRace" ${players.length<2?"disabled":""}>${players.length<2?"친구를 기다리는 중":"모두 함께 시작"}</button>`:"<p><strong>방장이 시작하기를 기다리고 있어요.</strong></p>"}`;
+    : `<p>방 코드</p><div class="room-code">${escapeHtml(code)}</div>${raceDifficulty}<p class="race-status">${escapeHtml(status||"친구를 기다리는 중…")}</p><ul class="race-players">${list}</ul>${isHost?(started?`<button class="primary" disabled>출발 준비 중…</button>`:`<button class="primary" data-action="startRace" ${players.length<2?"disabled":""}>${players.length<2?"친구를 기다리는 중":"모두 함께 시작"}</button>`):"<p><strong>방장이 시작하기를 기다리고 있어요.</strong></p>"}`;
   overlay.innerHTML=`<div class="card race-card"><p class="eyebrow">REAL-TIME RACE</p><h2>친구와 레이스</h2>${body}<button class="secondary" data-action="raceBack">나가기</button></div>`;
 }
