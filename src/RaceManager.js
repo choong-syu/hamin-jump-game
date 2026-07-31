@@ -72,7 +72,6 @@ export class RaceManager {
       x:player.x,
       state:player.state,
       facing:player.facing,
-      bossLevel:player.bossLevel||null
     };
     this.players.set(this.localId,state);this.pendingState=state;
     const now=Date.now();

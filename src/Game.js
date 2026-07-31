@@ -6,7 +6,6 @@ import { Player } from "./entities/Player.js";
 import { Item } from "./entities/Item.js";
 import { PlatformManager } from "./systems/PlatformManager.js";
 import { ParticleSystem } from "./systems/ParticleSystem.js";
-import { BossBattle } from "./systems/BossBattle.js";
 import { findLanding } from "./systems/CollisionSystem.js";
 import { updateCamera } from "./systems/CameraSystem.js";
 import { limitDelta } from "./systems/PhysicsSystem.js";
@@ -23,7 +22,7 @@ export class Game {
     this.canvas=canvas;this.ctx=canvas.getContext("2d");this.overlay=overlay;this.assets=new AssetLoader();
     this.state=GameState.LOADING;this.player=new Player();this.platformManager=new PlatformManager();this.particles=new ParticleSystem();
     this.distance=0;this.bonusScore=0;this.score=0;this.level=CHARACTER_LEVELS[0];this.levelBanner=0;this.slowMotion=0;
-    this.bossBattle=null;this.bossResumePlatform=null;this.clearedBosses=new Set();this.runSeed=Date.now();this.pauseReturnState=GameState.PLAYING;
+    this.runSeed=Date.now();this.pauseReturnState=GameState.PLAYING;
     this.pressureDistance=0;
     this.windTimer=0;this.windDirection=1;
     this.racePlayers=[];this.raceSyncTimer=0;
@@ -33,7 +32,7 @@ export class Game {
     this.difficulty=GAME_DIFFICULTIES[this.loadText(STORAGE_KEYS.difficulty)]?.id||"normal";
     this.audio=new AudioManager(this.loadBoolean(STORAGE_KEYS.soundMuted));this.input=new InputManager(canvas,action=>this.action(action));
     this.race=new RaceManager({
-      onLobby:snapshot=>{if(this.state!==GameState.PLAYING&&this.state!==GameState.BOSS)showRaceLobby(this.overlay,snapshot);},
+      onLobby:snapshot=>{if(this.state!==GameState.PLAYING)showRaceLobby(this.overlay,snapshot);},
       onStart:({seed,difficulty,startAt})=>{
         this.difficulty=difficulty;
         showRaceLobby(this.overlay,{...this.race.snapshot("레이스가 곧 시작됩니다!"),status:"3 · 2 · 1 · 출발!"});
@@ -86,10 +85,10 @@ export class Game {
   start(seed=null) {
     this.closeRaceMenu();
     this.state=GameState.PLAYING;this.overlay.classList.remove("start-background");this.overlay.innerHTML="";this.player.reset();this.level=CHARACTER_LEVELS[0];this.player.setLevel(this.level);
-    this.runSeed=Number(seed??Date.now());this.bossBattle=null;this.bossResumePlatform=null;this.clearedBosses.clear();this.consumablesUsed=0;this.itemUsePending=false;
+    this.runSeed=Number(seed??Date.now());this.consumablesUsed=0;this.itemUsePending=false;
     this.platformManager.reset(this.difficulty,seed);this.distance=0;this.bonusScore=0;this.score=0;this.levelBanner=0;this.pressureDistance=0;this.windTimer=0;this.windDirection=seed?(seed%2?1:-1):(Math.random()<.5?-1:1);this.raceSyncTimer=0;this.applyUpgrades();this.player.land(this.platformManager.platforms[0]);this.syncButtons();this.updateItemDock();
   }
-  togglePause(){if(this.race.active)return;if(this.state===GameState.PLAYING||this.state===GameState.BOSS){this.pauseReturnState=this.state;this.state=GameState.PAUSED;this.overlay.innerHTML='<div class="card"><h2>잠시 쉬어가요</h2><button class="primary" data-action="pause">계속하기</button></div>';}else if(this.state===GameState.PAUSED){this.state=this.pauseReturnState;this.overlay.innerHTML="";}}
+  togglePause(){if(this.race.active)return;if(this.state===GameState.PLAYING){this.pauseReturnState=this.state;this.state=GameState.PAUSED;this.overlay.innerHTML='<div class="card"><h2>잠시 쉬어가요</h2><button class="primary" data-action="pause">계속하기</button></div>';}else if(this.state===GameState.PAUSED){this.state=this.pauseReturnState;this.overlay.innerHTML="";}}
   update(dt) {
     const difficultyData=GAME_DIFFICULTIES[this.difficulty]||GAME_DIFFICULTIES.normal;
     if(difficultyData.screenRiseSpeed>0){
@@ -114,43 +113,11 @@ export class Game {
     const camera=updateCamera(this.player,this.platformManager);this.distance+=camera;
     const oldScore=this.score;this.score=Math.max(oldScore,Math.floor(this.distance/10)+this.bonusScore);
     const next=CHARACTER_LEVELS[this.level.level];
-    if(next&&this.score>=next.scoreRequired){
-      const characterChanges=next.spriteFolder!==this.level.spriteFolder;
-      if(characterChanges&&!this.clearedBosses.has(next.level)){this.startBoss(next);return;}
-      if(!characterChanges)this.levelUp(next);
-    }
+    if(next&&this.score>=next.scoreRequired)this.levelUp(next);
     this.particles.update(dt);if(this.levelBanner>0)this.levelBanner-=dt;if(this.slowMotion>0)this.slowMotion-=dt;
     if(this.player.y>GAME_HEIGHT+100)this.handleFall();
     if(this.state!==GameState.PLAYING)return;
     if(this.race.active){this.raceSyncTimer+=dt;if(this.raceSyncTimer>=.08){this.raceSyncTimer=0;this.race.updateLocal({name:this.playerName,score:this.score,level:this.level.level,alive:true,altitude:Math.floor(this.distance),progress:Math.floor(this.distance+640-this.player.y),x:Math.round(this.player.x),state:this.player.state,facing:this.player.facing});}}
-  }
-  startBoss(next){
-    const feet=this.player.y+this.player.hitbox.offsetY+this.player.hitbox.height;
-    this.bossResumePlatform=this.platformManager.platforms.filter(platform=>platform.active&&platform.visible&&platform.y>=feet-8&&platform.y<770).sort((a,b)=>a.y-b.y)[0]||null;
-    this.state=GameState.BOSS;this.bossBattle=new BossBattle(next,this.runSeed,this.difficulty);this.bossBattle.preparePlayer(this.player);this.player.state=PlayerState.IDLE;this.player.stateTime=0;
-    this.particles.burst(240,165,"#ffe46d",28,170);this.audio.tone(150,.35,"sawtooth");this.updateItemDock();
-  }
-  updateBoss(dt){
-    if(!this.bossBattle)return;
-    this.player.update(dt,this.input.axis(),false);
-    this.player.y=this.bossBattle.arenaY-this.player.hitbox.offsetY-this.player.hitbox.height;
-    this.player.previousY=this.player.y;this.player.velocityY=0;this.player.x=Math.max(-this.player.hitbox.offsetX,Math.min(GAME_WIDTH-this.player.width+this.player.hitbox.offsetX,this.player.x));
-    const event=this.bossBattle.update(dt,this.player.getCollisionBox());
-    this.particles.update(dt);
-    if(event?.hit){
-      if(this.player.shield){this.player.shield=false;this.particles.burst(this.player.x+41,this.player.y+34,"#8cecff",28,190);this.audio.tone(210,.18,"square");}
-      else {this.gameOver("왕의 미사일에\n맞았어요!");return;}
-    }
-    if(event?.victory){this.particles.burst(this.bossBattle.bossX,this.bossBattle.bossY,"#ffe96b",52,260);this.audio.tone(920,.4,"sine");}
-    if(event?.complete){this.completeBoss();return;}
-    if(this.race.active){this.raceSyncTimer+=dt;if(this.raceSyncTimer>=.08){this.raceSyncTimer=0;this.race.updateLocal({name:this.playerName,score:this.score,level:this.level.level,bossLevel:this.bossBattle.targetLevel.level,alive:true,altitude:Math.floor(this.distance),progress:Math.floor(this.distance+640-this.player.y),x:Math.round(this.player.x),state:this.player.state,facing:this.player.facing});}}
-  }
-  completeBoss(){
-    const next=this.bossBattle.targetLevel;this.clearedBosses.add(next.level);this.bossBattle=null;this.levelUp(next);this.state=GameState.PLAYING;
-    const target=(this.bossResumePlatform?.active&&this.bossResumePlatform?.visible?this.bossResumePlatform:null)||this.platformManager.platforms.filter(platform=>platform.active&&platform.visible&&platform.y>520&&platform.y<760).sort((a,b)=>b.y-a.y)[0]||this.platformManager.platforms[0];
-    this.bossResumePlatform=null;
-    if(target){this.player.x=target.x+target.width/2-this.player.width/2;this.player.land(target);}
-    this.updateItemDock();
   }
   handleFall() {
     if(this.player.shield){this.player.shield=false;const target=this.platformManager.platforms.filter(p=>p.active&&p.visible&&p.y<740).sort((a,b)=>b.y-a.y)[0];if(target){this.player.x=target.x+target.width/2-41;this.player.y=target.y-82;this.player.land(target);return;}}
@@ -168,12 +135,11 @@ export class Game {
   render() {
     this.drawBackground();
     this.platformManager.render(this.ctx,this.debug&&this.showBoxes);
-    if(this.bossBattle)this.bossBattle.render(this.ctx,this.assets.getBoss(this.bossBattle.bossIndex),this.assets.getMissile());
     this.particles.render(this.ctx);
-    if(this.race.active&&(this.state===GameState.PLAYING||this.state===GameState.BOSS))this.drawRaceGhosts();
+    if(this.race.active&&this.state===GameState.PLAYING)this.drawRaceGhosts();
     const spriteState=this.player.state===PlayerState.DEAD?"fall":this.player.state;
     this.player.render(this.ctx,this.assets.get(this.level.level,spriteState),this.debug&&this.showBoxes);
-    if(this.state===GameState.PLAYING||this.state===GameState.BOSS||this.state===GameState.PAUSED){drawHUD(this.ctx,this.score,Math.max(this.best,this.score),this.level);if(!this.bossBattle&&this.level.level>=11)this.drawWind();if(this.race.active)this.drawRaceHUD();}
+    if(this.state===GameState.PLAYING||this.state===GameState.PAUSED){drawHUD(this.ctx,this.score,Math.max(this.best,this.score),this.level);if(this.level.level>=11)this.drawWind();if(this.race.active)this.drawRaceHUD();}
     if(this.levelBanner>0)this.drawLevelBanner();
     if(this.debug)this.drawDebug();
   }
@@ -192,14 +158,13 @@ export class Game {
       const level=CHARACTER_LEVELS[Math.max(0,Math.min(11,(player.level||1)-1))];
       const state=Object.values(PlayerState).includes(player.state)&&player.state!==PlayerState.DEAD?player.state:PlayerState.IDLE;
       const image=this.assets.get(level.level,state);if(!image)return;
-      const sameBoss=this.bossBattle&&player.bossLevel===this.bossBattle.targetLevel.level;
-      const y=sameBoss?this.player.y:this.player.y-(player.progress-localProgress);if(y<-100||y>820)return;
+      const y=this.player.y-(player.progress-localProgress);if(y<-100||y>820)return;
       this.ctx.save();this.ctx.globalAlpha=.36;this.ctx.translate((player.x??199)+41,y+41);this.ctx.scale(player.facing==="left"?-1:1,1);this.ctx.drawImage(image,-41,-41,82,82);this.ctx.restore();
     });
   }
   drawRaceHUD(){const others=this.racePlayers.filter(player=>player.id!==this.race.localId).sort((a,b)=>b.score-a.score).slice(0,3);if(!others.length)return;this.ctx.save();this.ctx.fillStyle="#142f46c9";this.ctx.beginPath();this.ctx.roundRect(292,91,176,24+others.length*22,12);this.ctx.fill();this.ctx.fillStyle="#fff";this.ctx.font="800 11px sans-serif";this.ctx.textAlign="left";this.ctx.fillText("LIVE RACE",304,108);others.forEach((player,index)=>{this.ctx.fillStyle=player.alive===false?"#a9b4bc":"#fff";this.ctx.fillText(`${index+1}. ${player.name}`,304,129+index*21);this.ctx.textAlign="right";this.ctx.fillText(`${player.score}`,456,129+index*21);this.ctx.textAlign="left";});this.ctx.restore();}
   drawDebug(){this.ctx.save();this.ctx.fillStyle="#06111ddd";this.ctx.fillRect(10,96,190,120);this.ctx.fillStyle="#b7ff8b";this.ctx.font="12px monospace";const lines=[`FPS ${this.fps.toFixed(0)}`,`STATE ${this.player.state}`,`VX ${this.player.velocityX.toFixed(1)}`,`VY ${this.player.velocityY.toFixed(1)}`,`JUMP ${this.player.jumpPower}`,`CAMERA ${this.distance.toFixed(0)}`,`PLATFORMS ${this.platformManager.platforms.length}`,`GRAVITY ${this.gravity}`];lines.forEach((line,i)=>this.ctx.fillText(line,19,113+i*14));this.ctx.restore();}
-  loop(time){const raw=(time-this.lastTime)/1000;this.lastTime=time;this.fps=this.fps*.9+(raw?1/raw:60)*.1;const dt=limitDelta(raw)*(this.slowMotion>0?.45:1);if(this.state===GameState.PLAYING)this.update(dt);else if(this.state===GameState.BOSS)this.updateBoss(dt);this.render();requestAnimationFrame(t=>this.loop(t));}
+  loop(time){const raw=(time-this.lastTime)/1000;this.lastTime=time;this.fps=this.fps*.9+(raw?1/raw:60)*.1;const dt=limitDelta(raw)*(this.slowMotion>0?.45:1);if(this.state===GameState.PLAYING)this.update(dt);this.render();requestAnimationFrame(t=>this.loop(t));}
   showStart(){if(!this.accounts.current){this.showAuth();return;}this.playerName=this.accounts.current.username;this.best=this.accounts.current.bestScore;this.records=this.accounts.current.records;showStart(this.overlay,this.best,"assets/sprites/level1/idle.png",this.accounts.current,this.difficulty);this.syncButtons();this.updateItemDock();}
   showAuth(options={}){showAuth(this.overlay,options);this.syncButtons();}
   captureDifficulty(){this.difficulty=this.overlay.querySelector('input[name="difficulty"]:checked')?.value||this.difficulty||"normal";this.save(STORAGE_KEYS.difficulty,this.difficulty);}
@@ -220,7 +185,7 @@ export class Game {
   async openAccountPanel(kind){
     const account=this.accounts.current;if(!account)return;
     if(!this.panelContext)this.panelContext={state:this.state,html:this.overlay.innerHTML,startBackground:this.overlay.classList.contains("start-background")};
-    if((this.state===GameState.PLAYING||this.state===GameState.BOSS)&&!this.race.active){this.pauseReturnState=this.state;this.state=GameState.PAUSED;}
+    if(this.state===GameState.PLAYING&&!this.race.active){this.pauseReturnState=this.state;this.state=GameState.PAUSED;}
     if(kind==="records"){let leaderboard=[];try{leaderboard=await this.accounts.leaderboard();}catch{}showRecords(this.overlay,account,leaderboard);}
     if(kind==="wallet")showWallet(this.overlay,account);
     if(kind==="store")showStore(this.overlay,account);

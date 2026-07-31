@@ -16,7 +16,7 @@ export class Player {
     if(this.x+this.width<0)this.x=GAME_WIDTH;if(this.x>GAME_WIDTH)this.x=-this.width;
     if(this.stateTime>.08) this.state=this.velocityY<-80?PlayerState.RISE:this.velocityY>80?PlayerState.FALL:this.state;
   }
-  land(platform,power=1) { this.y=platform.y-this.hitbox.offsetY-this.hitbox.height;this.velocityY=-this.jumpPower*power;this.state=PlayerState.LANDING;this.stateTime=0; }
+  land(platform,power=1) { const centerX=this.x+this.hitbox.offsetX+this.hitbox.width/2,surfaceY=platform.getSurfaceY?platform.getSurfaceY(centerX):platform.y;this.y=surfaceY-this.hitbox.offsetY-this.hitbox.height;this.velocityY=-this.jumpPower*power;this.state=PlayerState.LANDING;this.stateTime=0; }
   getCollisionBox(previous=false) { return {x:this.x+this.hitbox.offsetX,y:(previous?this.previousY:this.y)+this.hitbox.offsetY,width:this.hitbox.width,height:this.hitbox.height}; }
   render(ctx,image,debug=false) {
     let sx=1,sy=1,rot=0,bob=0;

@@ -26,20 +26,35 @@ export class PlatformManager {
     const reachable=Math.max(72,Math.min(145,flightTime*(220+(level-1)*12)*.78));
     const maxDx=level===1?Math.min(90,reachable):reachable;
     let x=Math.max(20,Math.min(460-width,last.x+this.range(-maxDx,maxDx)));
-    const breakChance=d.breakChance*modifier.breakScale,movingChance=d.movingChance*modifier.movingScale;
+    const motionScale=mode==="advanced"?1.2:mode==="beginner"?.68:1;
+    const options=[];
+    const add=(minimum,chance,type)=>{if(level>=minimum)options.push({chance,type});};
+    add(12,.03,"rainbow");add(10,.035,"rocket");add(9,.045,"pulse");add(8,.05,"ice");add(7,.04,"cloud");add(6,.04,"vanishing");add(5,.05,"conveyor");
+    add(2,Math.min(.10,.045+level*.004)*motionScale,"tilted");
+    add(3,Math.min(.12,.04+level*.006)*motionScale,"vertical");
+    add(5,Math.min(.11,.03+level*.006)*motionScale,"rotating");
+    add(4,Math.min(.16,d.breakChance*modifier.breakScale),"breakable");
+    add(3,Math.min(.20,d.movingChance*modifier.movingScale),"moving");
+    const total=options.reduce((sum,option)=>sum+option.chance,0),chanceScale=Math.min(1,.9/Math.max(.01,total));
     const roll=this.random();let cursor=0,type="normal";
-    const choose=(minimum,chance,name)=>{if(type==="normal"&&level>=minimum&&roll>=cursor&&roll<cursor+chance)type=name;cursor+=chance;};
-    choose(12,.055,"rainbow");choose(10,.06,"rocket");choose(9,.075,"pulse");choose(8,.09,"ice");choose(7,.075,"cloud");choose(6,.07,"vanishing");choose(5,.09,"conveyor");
-    choose(4,breakChance,"breakable");choose(3,movingChance,"moving");
-    // 연속 사라짐 발판은 표시 주기가 엇갈릴 때 통과 불가능한 구간을 만들 수 있다.
-    // 바로 앞 발판이 사라짐 발판이면 이번 발판은 항상 일반 발판으로 보장한다.
-    if(last.type==="vanishing"&&type==="vanishing")type="normal";
+    for(const option of options){cursor+=option.chance*chanceScale;if(roll<cursor){type=option.type;break;}}
+    // 타이밍이 겹치면 불가능해질 수 있는 동적 발판은 같은 종류로 연속 생성하지 않는다.
+    if(["vanishing","vertical","rotating"].includes(type)&&last.type===type)type="normal";
     let item=null;const itemRoll=this.random();if(itemRoll<.07)item="star";else if(itemRoll<.10)item="spring";else if(level>=4&&itemRoll<.12)item="wings";else if(level>=6&&itemRoll<.135)item="shield";else if(level>=7&&itemRoll<.15)item="gem";else if(level>=8&&itemRoll<.163)item="feather";
-    return new Platform({x,y:last.y-gap,width,type,speed:type==="moving"?this.range(35,65):0,direction:this.random()<.5?-1:1,item,phase:this.range(0,6)});
+    const speedMode=mode==="advanced"?1.15:mode==="beginner"?.85:1;
+    const movingSpeed=type==="moving"?(28+level*6+this.range(0,18))*speedMode:0;
+    const tiltDegrees=5+Math.min(10,level*.75),rotationDegrees=8+Math.min(10,level*.8);
+    const angle=(type==="tilted"?(this.random()<.5?-1:1)*tiltDegrees:type==="rotating"?rotationDegrees:0)*Math.PI/180;
+    return new Platform({
+      x,y:last.y-gap,width,type,speed:movingSpeed,direction:this.random()<.5?-1:1,item,phase:this.range(0,6),angle,
+      rotationSpeed:type==="rotating"?(0.65+level*.09)*speedMode:0,
+      verticalAmplitude:type==="vertical"?12+Math.min(15,level*1.2):0,
+      verticalSpeed:type==="vertical"?(0.85+level*.08)*speedMode:0
+    });
   }
   update(dt,level,mode="normal"){this.platforms.forEach(p=>p.update(dt));this.platforms=this.platforms.filter(p=>p.y<GAME_HEIGHT+90&&p.active);let top=this.platforms.reduce((a,b)=>a.y<b.y?a:b);while(top.y>-80){top=this.createAbove(top,level,mode);this.platforms.push(top);}}
-  scroll(amount){this.platforms.forEach(p=>p.y+=amount);}
-  render(ctx,debug=false){this.platforms.forEach(p=>{p.render(ctx);if(debug&&p.active){ctx.strokeStyle="#ffe14a";ctx.strokeRect(p.x,p.y,p.width,p.height);}});}
+  scroll(amount){this.platforms.forEach(p=>p.scroll(amount));}
+  render(ctx,debug=false){this.platforms.forEach(p=>{p.render(ctx);if(debug&&p.active){ctx.strokeStyle="#ffe14a";ctx.beginPath();ctx.moveTo(p.x,p.getSurfaceY(p.x));ctx.lineTo(p.x+p.width,p.getSurfaceY(p.x+p.width));ctx.stroke();}});}
   random(){this.seed=this.seed*16807%2147483647;return(this.seed-1)/2147483646;}
   range(min,max){return min+this.random()*(max-min);}
 }
