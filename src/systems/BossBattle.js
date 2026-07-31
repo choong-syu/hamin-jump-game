@@ -39,7 +39,7 @@ export class BossBattle {
     this.victory=false;
     this.victoryTimer=0;
     this.bossX=240;
-    this.bossY=154;
+    this.bossY=218;
     this.arenaY=735;
     this.difficulty=difficulty;
   }
@@ -92,7 +92,7 @@ export class BossBattle {
     this.warnings.forEach(warning=>{
       warning.time-=dt;
       if(warning.time<=0){
-        this.missiles.push({x:warning.x,y:212,speed:warning.speed,drift:warning.drift,angle:warning.drift*.0015});
+        this.missiles.push({x:warning.x,y:282,speed:warning.speed,drift:warning.drift,angle:warning.drift*.0015});
       } else pending.push(warning);
     });
     this.warnings=pending;
@@ -129,16 +129,16 @@ export class BossBattle {
 
     ctx.fillStyle="#142a3de8";
     ctx.beginPath();
-    ctx.roundRect(18,88,444,56,18);
+    ctx.roundRect(18,126,444,56,18);
     ctx.fill();
     ctx.textAlign="center";
     ctx.fillStyle="#ffe67c";
     ctx.font="900 17px sans-serif";
-    ctx.fillText(`진화 관문 · ${this.name}`,240,111);
+    ctx.fillText(`진화 관문 · ${this.name}`,240,149);
     ctx.fillStyle="#d9ecff";
     ctx.font="800 12px sans-serif";
     const remaining=Math.max(0,this.totalWaves-this.spawnedWaves)+this.warnings.length+this.missiles.length;
-    ctx.fillText(this.victory?"왕을 물리쳤어요!":`미사일을 피해요 · 남은 위협 ${remaining}`,240,132);
+    ctx.fillText(this.victory?"왕을 물리쳤어요!":`미사일을 피해요 · 남은 위협 ${remaining}`,240,170);
 
     const bossScale=this.victory?Math.max(0,1-this.victoryTimer/.9):1;
     if(bossImage&&bossScale>0){
@@ -155,15 +155,15 @@ export class BossBattle {
       const pulse=.35+Math.sin(warning.time*30)*.18;
       ctx.globalAlpha=Math.max(.16,pulse);
       ctx.fillStyle="#ff4d6d";
-      ctx.fillRect(warning.x-18,210,36,this.arenaY-210);
+      ctx.fillRect(warning.x-18,278,36,this.arenaY-278);
       ctx.globalAlpha=1;
       ctx.fillStyle="#fff4a9";
       ctx.beginPath();
-      ctx.arc(warning.x,229,15,0,Math.PI*2);
+      ctx.arc(warning.x,297,15,0,Math.PI*2);
       ctx.fill();
       ctx.fillStyle="#9b183b";
       ctx.font="900 19px sans-serif";
-      ctx.fillText("!",warning.x,236);
+      ctx.fillText("!",warning.x,304);
     });
 
     this.missiles.forEach(missile=>{
