@@ -23,7 +23,7 @@ export class Game {
     this.canvas=canvas;this.ctx=canvas.getContext("2d");this.overlay=overlay;this.assets=new AssetLoader();
     this.state=GameState.LOADING;this.player=new Player();this.platformManager=new PlatformManager();this.particles=new ParticleSystem();
     this.distance=0;this.bonusScore=0;this.score=0;this.level=CHARACTER_LEVELS[0];this.levelBanner=0;this.slowMotion=0;
-    this.bossBattle=null;this.clearedBosses=new Set();this.runSeed=Date.now();this.pauseReturnState=GameState.PLAYING;
+    this.bossBattle=null;this.bossResumePlatform=null;this.clearedBosses=new Set();this.runSeed=Date.now();this.pauseReturnState=GameState.PLAYING;
     this.pressureDistance=0;
     this.windTimer=0;this.windDirection=1;
     this.racePlayers=[];this.raceSyncTimer=0;
@@ -86,7 +86,7 @@ export class Game {
   start(seed=null) {
     this.closeRaceMenu();
     this.state=GameState.PLAYING;this.overlay.classList.remove("start-background");this.overlay.innerHTML="";this.player.reset();this.level=CHARACTER_LEVELS[0];this.player.setLevel(this.level);
-    this.runSeed=Number(seed??Date.now());this.bossBattle=null;this.clearedBosses.clear();
+    this.runSeed=Number(seed??Date.now());this.bossBattle=null;this.bossResumePlatform=null;this.clearedBosses.clear();
     this.platformManager.reset(this.difficulty,seed);this.distance=0;this.bonusScore=0;this.score=0;this.levelBanner=0;this.pressureDistance=0;this.windTimer=0;this.windDirection=seed?(seed%2?1:-1):(Math.random()<.5?-1:1);this.raceSyncTimer=0;this.applyUpgrades();this.player.land(this.platformManager.platforms[0]);this.syncButtons();this.updateItemDock();
   }
   togglePause(){if(this.race.active)return;if(this.state===GameState.PLAYING||this.state===GameState.BOSS){this.pauseReturnState=this.state;this.state=GameState.PAUSED;this.overlay.innerHTML='<div class="card"><h2>잠시 쉬어가요</h2><button class="primary" data-action="pause">계속하기</button></div>';}else if(this.state===GameState.PAUSED){this.state=this.pauseReturnState;this.overlay.innerHTML="";}}
@@ -114,13 +114,19 @@ export class Game {
     const camera=updateCamera(this.player,this.platformManager);this.distance+=camera;
     const oldScore=this.score;this.score=Math.max(oldScore,Math.floor(this.distance/10)+this.bonusScore);
     const next=CHARACTER_LEVELS[this.level.level];
-    if(next&&this.score>=next.scoreRequired&&!this.clearedBosses.has(next.level)){this.startBoss(next);return;}
+    if(next&&this.score>=next.scoreRequired){
+      const characterChanges=next.spriteFolder!==this.level.spriteFolder;
+      if(characterChanges&&!this.clearedBosses.has(next.level)){this.startBoss(next);return;}
+      if(!characterChanges)this.levelUp(next);
+    }
     this.particles.update(dt);if(this.levelBanner>0)this.levelBanner-=dt;if(this.slowMotion>0)this.slowMotion-=dt;
     if(this.player.y>GAME_HEIGHT+100)this.handleFall();
     if(this.state!==GameState.PLAYING)return;
     if(this.race.active){this.raceSyncTimer+=dt;if(this.raceSyncTimer>=.08){this.raceSyncTimer=0;this.race.updateLocal({name:this.playerName,score:this.score,level:this.level.level,alive:true,altitude:Math.floor(this.distance),progress:Math.floor(this.distance+640-this.player.y),x:Math.round(this.player.x),state:this.player.state,facing:this.player.facing});}}
   }
   startBoss(next){
+    const feet=this.player.y+this.player.hitbox.offsetY+this.player.hitbox.height;
+    this.bossResumePlatform=this.platformManager.platforms.filter(platform=>platform.active&&platform.visible&&platform.y>=feet-8&&platform.y<770).sort((a,b)=>a.y-b.y)[0]||null;
     this.state=GameState.BOSS;this.bossBattle=new BossBattle(next,this.runSeed,this.difficulty);this.bossBattle.preparePlayer(this.player);this.player.state=PlayerState.IDLE;this.player.stateTime=0;
     this.particles.burst(240,165,"#ffe46d",28,170);this.audio.tone(150,.35,"sawtooth");this.updateItemDock();
   }
@@ -141,7 +147,8 @@ export class Game {
   }
   completeBoss(){
     const next=this.bossBattle.targetLevel;this.clearedBosses.add(next.level);this.bossBattle=null;this.levelUp(next);this.state=GameState.PLAYING;
-    const target=this.platformManager.platforms.filter(platform=>platform.active&&platform.visible&&platform.y>520&&platform.y<760).sort((a,b)=>b.y-a.y)[0]||this.platformManager.platforms[0];
+    const target=(this.bossResumePlatform?.active&&this.bossResumePlatform?.visible?this.bossResumePlatform:null)||this.platformManager.platforms.filter(platform=>platform.active&&platform.visible&&platform.y>520&&platform.y<760).sort((a,b)=>b.y-a.y)[0]||this.platformManager.platforms[0];
+    this.bossResumePlatform=null;
     if(target){this.player.x=target.x+target.width/2-this.player.width/2;this.player.land(target);}
     this.updateItemDock();
   }
@@ -160,8 +167,8 @@ export class Game {
   }
   render() {
     this.drawBackground();
+    this.platformManager.render(this.ctx,this.debug&&this.showBoxes);
     if(this.bossBattle)this.bossBattle.render(this.ctx,this.assets.getBoss(this.bossBattle.bossIndex),this.assets.getMissile());
-    else this.platformManager.render(this.ctx,this.debug&&this.showBoxes);
     this.particles.render(this.ctx);
     if(this.race.active&&(this.state===GameState.PLAYING||this.state===GameState.BOSS))this.drawRaceGhosts();
     const spriteState=this.player.state===PlayerState.DEAD?"fall":this.player.state;
