@@ -1,65 +1,150 @@
 export class RaceManager {
-  constructor({onLobby,onStart,onUpdate,onError}) {
-    this.onLobby=onLobby;this.onStart=onStart;this.onUpdate=onUpdate;this.onError=onError;
-    this.peer=null;this.connections=new Map();this.players=new Map();this.isHost=false;this.active=false;this.code="";this.localId="local";this.difficulty="normal";
+  constructor({onLobby,onStart,onUpdate,onRooms,onError}) {
+    this.onLobby=onLobby;this.onStart=onStart;this.onUpdate=onUpdate;this.onRooms=onRooms;this.onError=onError;
+    this.players=new Map();this.isHost=false;this.active=false;this.code="";this.localId="local";this.localName="";this.difficulty="normal";
+    this.pollTimer=null;this.polling=false;this.startTriggered=false;this.lastStateSent=0;this.pendingState=null;
   }
-  create(name,difficulty) {
-    if(!window.Peer)return this.fail("실시간 연결 모듈을 불러오지 못했습니다.");
-    this.destroy();this.localName=name;this.isHost=true;this.active=true;this.difficulty=difficulty;this.code=this.makeCode();this.localId=`host-${this.code}`;
-    this.players.set(this.localId,{id:this.localId,name,score:0,level:1,alive:true,ready:true});
-    this.peer=new window.Peer(`hamin-jump-${this.code}`,{debug:1});
-    this.peer.on("open",()=>this.emitLobby("방이 만들어졌어요. 코드를 친구에게 알려주세요."));
-    this.peer.on("connection",connection=>{if(this.connections.size>=3){connection.close();return;}this.bind(connection);});
-    this.peer.on("error",error=>this.fail(this.message(error)));
+
+  async request(action,data={}) {
+    const response=await fetch("/api/races",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      credentials:"same-origin",
+      body:JSON.stringify({action,...data})
+    });
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(result.error||"레이스 서버에 연결하지 못했습니다.");
+    return result;
   }
-  join(code,name) {
-    if(!window.Peer)return this.fail("실시간 연결 모듈을 불러오지 못했습니다.");
-    this.destroy();this.localName=name;this.isHost=false;this.active=true;this.code=code.toUpperCase();this.peer=new window.Peer(undefined,{debug:1});
-    this.peer.on("open",id=>{this.localId=id;const connection=this.peer.connect(`hamin-jump-${this.code}`,{serialization:"json",metadata:{name}});this.bind(connection);this.emitLobby("방에 연결하는 중…");});
-    this.peer.on("error",error=>this.fail(this.message(error)));
-  }
-  bind(connection) {
-    this.connections.set(connection.peer,connection);
-    connection.on("open",()=>{if(!this.isHost)connection.send({type:"join",name:this.getLocalName()});});
-    connection.on("data",data=>this.receive(connection,data));
-    connection.on("close",()=>{this.connections.delete(connection.peer);if(this.isHost){this.players.delete(connection.peer);this.broadcastLobby();}else this.fail("방장과의 연결이 끊어졌습니다.");});
-    connection.on("error",()=>this.fail("친구와 연결할 수 없습니다."));
-  }
-  receive(connection,data) {
-    if(!data||typeof data!=="object")return;
-    if(this.isHost){
-      if(data.type==="join"){this.players.set(connection.peer,{id:connection.peer,name:String(data.name||"친구").slice(0,12),score:0,level:1,alive:true,ready:true});this.broadcastLobby();}
-      if(data.type==="state"){this.players.set(connection.peer,{...this.players.get(connection.peer),...data.player,id:connection.peer});this.broadcast({type:"state",players:[...this.players.values()]});this.onUpdate?.([...this.players.values()]);}
-    }else{
-      if(data.type==="lobby"){this.difficulty=data.difficulty||"normal";this.players=new Map(data.players.map(player=>[player.id,player]));this.onLobby?.(this.snapshot(data.status));}
-      if(data.type==="start")this.onStart?.(data);
-      if(data.type==="state"){this.players=new Map(data.players.map(player=>[player.id,player]));this.onUpdate?.([...this.players.values()]);}
+
+  async listRooms() {
+    try{
+      const response=await fetch("/api/races",{credentials:"same-origin",cache:"no-store"});
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(result.error||"방 목록을 불러오지 못했습니다.");
+      this.onRooms?.(result.rooms||[]);
+      return result.rooms||[];
+    }catch(error){
+      this.onError?.(error.message);
+      return[];
     }
   }
-  startRace(difficulty) {
-    if(!this.isHost||this.players.size<2)return;
-    const seed=Math.floor(Math.random()*2147483646)+1,message={type:"start",seed,difficulty,startAt:Date.now()+1800};
-    this.broadcast(message);this.onStart?.(message);
+
+  async create(name,difficulty) {
+    this.resetLocal();this.localName=name;this.difficulty=difficulty;
+    try{
+      const result=await this.request("create",{difficulty});
+      this.active=true;this.applyRoom(result.room,"방이 만들어졌어요. 공개 목록에서 누구나 참가할 수 있어요.");this.startPolling();
+    }catch(error){this.fail(error.message);}
   }
-  setDifficulty(difficulty) {
+
+  async join(code,name) {
+    this.resetLocal();this.localName=name;this.code=String(code||"").toUpperCase();
+    try{
+      const result=await this.request("join",{code:this.code});
+      this.active=true;this.applyRoom(result.room,"방에 참가했습니다.");this.startPolling();
+    }catch(error){this.fail(error.message);}
+  }
+
+  async setDifficulty(difficulty) {
     if(!this.isHost||!["beginner","normal","advanced"].includes(difficulty))return;
-    this.difficulty=difficulty;this.broadcastLobby();
+    this.difficulty=difficulty;
+    try{const result=await this.request("difficulty",{code:this.code,difficulty});this.applyRoom(result.room);}
+    catch(error){this.fail(error.message);}
   }
+
+  async startRace() {
+    if(!this.isHost||this.players.size<2)return;
+    try{const result=await this.request("start",{code:this.code});this.applyRoom(result.room);}
+    catch(error){this.fail(error.message);}
+  }
+
   updateLocal(player) {
     if(!this.active)return;
-    const state={id:this.localId,name:player.name,score:player.score,level:player.level,alive:player.alive,altitude:player.altitude,progress:player.progress,x:player.x,state:player.state,facing:player.facing};
-    this.players.set(this.localId,state);
-    if(this.isHost){this.broadcast({type:"state",players:[...this.players.values()]});this.onUpdate?.([...this.players.values()]);}
-    else this.connections.values().next().value?.send({type:"state",player:state});
+    const state={
+      id:this.localId,
+      name:player.name,
+      score:player.score,
+      level:player.level,
+      alive:player.alive,
+      altitude:player.altitude,
+      progress:player.progress,
+      x:player.x,
+      state:player.state,
+      facing:player.facing,
+      bossLevel:player.bossLevel||null
+    };
+    this.players.set(this.localId,state);this.pendingState=state;
+    const now=Date.now();
+    if(now-this.lastStateSent>=220){this.lastStateSent=now;this.sendPendingState();}
   }
-  broadcastLobby(){const message={type:"lobby",players:[...this.players.values()],difficulty:this.difficulty,status:`${this.players.size}/4명 참가`};this.broadcast(message);this.onLobby?.(this.snapshot(message.status));}
-  broadcast(message){for(const connection of this.connections.values())if(connection.open)connection.send(message);}
-  emitLobby(status){this.onLobby?.(this.snapshot(status));}
-  snapshot(status=""){return{mode:"room",code:this.code,players:[...this.players.values()],isHost:this.isHost,difficulty:this.difficulty,status};}
+
+  async sendPendingState() {
+    const player=this.pendingState;if(!player||!this.active||this.polling)return;
+    this.pendingState=null;this.polling=true;
+    try{const result=await this.request("state",{code:this.code,player});this.applyRoom(result.room);}
+    catch(error){this.handlePollError(error);}
+    finally{this.polling=false;}
+  }
+
+  startPolling() {
+    clearInterval(this.pollTimer);
+    this.pollTimer=setInterval(()=>this.poll(),this.startTriggered?450:900);
+  }
+
+  async poll() {
+    if(!this.active||this.polling)return;
+    if(this.pendingState&&Date.now()-this.lastStateSent>=220){this.lastStateSent=Date.now();this.sendPendingState();return;}
+    this.polling=true;
+    try{const result=await this.request("snapshot",{code:this.code});this.applyRoom(result.room);}
+    catch(error){this.handlePollError(error);}
+    finally{this.polling=false;}
+  }
+
+  applyRoom(room,statusText="") {
+    if(!room)return;
+    const wasStarted=this.startTriggered;
+    this.code=room.code;this.localId=room.localId||this.localId;this.isHost=!!room.isHost;this.difficulty=room.difficulty||"normal";
+    this.players=new Map((room.players||[]).map(player=>[player.id,player]));
+    this.onUpdate?.([...this.players.values()]);
+    if(room.status==="playing"){
+      this.startTriggered=true;
+      if(!wasStarted){
+        this.startPolling();
+        this.onStart?.({seed:room.seed,difficulty:this.difficulty,startAt:room.startAt});
+      }
+    }else{
+      this.onLobby?.(this.snapshot(statusText||`${this.players.size}/4명 참가`));
+    }
+  }
+
+  handlePollError(error) {
+    if(/종료|찾지 못|참가 중/.test(error.message)){
+      this.stopPolling();this.active=false;this.onError?.("방이 종료되었거나 방장이 나갔습니다.");
+    }
+  }
+
+  snapshot(status="") {
+    return{mode:"room",code:this.code,players:[...this.players.values()],isHost:this.isHost,difficulty:this.difficulty,status};
+  }
+
   getPlayers(){return[...this.players.values()];}
-  getLocalName(){return this.players.get(this.localId)?.name||this.localName||"친구";}
-  makeCode(){const chars="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";return Array.from({length:6},()=>chars[Math.floor(Math.random()*chars.length)]).join("");}
-  message(error){return error?.type==="unavailable-id"?"방 코드가 충돌했습니다. 다시 만들어 주세요.":"레이스 서버에 연결하지 못했습니다.";}
-  fail(message){this.onError?.(message);}
-  destroy(){this.connections?.forEach(connection=>connection.close());this.connections=new Map();this.peer?.destroy();this.peer=null;this.players=new Map();this.active=false;}
+
+  async destroy() {
+    const code=this.code,wasActive=this.active;
+    this.stopPolling();this.resetLocal();
+    if(wasActive&&code){
+      fetch("/api/races",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        credentials:"same-origin",
+        keepalive:true,
+        body:JSON.stringify({action:"leave",code})
+      }).catch(()=>{});
+    }
+  }
+
+  stopPolling(){clearInterval(this.pollTimer);this.pollTimer=null;}
+  resetLocal(){this.stopPolling();this.players=new Map();this.isHost=false;this.active=false;this.code="";this.localId="local";this.startTriggered=false;this.pendingState=null;this.polling=false;}
+  fail(message){this.resetLocal();this.onError?.(message||"레이스 서버에 연결하지 못했습니다.");}
 }

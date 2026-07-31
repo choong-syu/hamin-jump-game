@@ -41,6 +41,29 @@ export async function ensureSchema(){
       count INTEGER NOT NULL,
       expires_at TIMESTAMPTZ NOT NULL
     )`;
+    await sql`CREATE TABLE IF NOT EXISTS hamin_race_rooms (
+      code TEXT PRIMARY KEY,
+      host_key TEXT NOT NULL REFERENCES hamin_users(username_key) ON DELETE CASCADE,
+      host_name TEXT NOT NULL,
+      difficulty TEXT NOT NULL DEFAULT 'normal',
+      status TEXT NOT NULL DEFAULT 'waiting',
+      seed BIGINT,
+      start_at BIGINT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`;
+    await sql`CREATE TABLE IF NOT EXISTS hamin_race_players (
+      room_code TEXT NOT NULL REFERENCES hamin_race_rooms(code) ON DELETE CASCADE,
+      username_key TEXT NOT NULL REFERENCES hamin_users(username_key) ON DELETE CASCADE,
+      username TEXT NOT NULL,
+      is_host BOOLEAN NOT NULL DEFAULT FALSE,
+      state JSONB NOT NULL DEFAULT '{}'::jsonb,
+      joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      last_seen TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (room_code,username_key)
+    )`;
+    await sql`CREATE INDEX IF NOT EXISTS hamin_race_rooms_status_idx ON hamin_race_rooms(status,updated_at)`;
+    await sql`CREATE INDEX IF NOT EXISTS hamin_race_players_seen_idx ON hamin_race_players(room_code,last_seen)`;
   })();
   return schemaPromise;
 }

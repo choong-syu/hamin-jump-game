@@ -27,22 +27,24 @@ export class Game {
     this.pressureDistance=0;
     this.windTimer=0;this.windDirection=1;
     this.racePlayers=[];this.raceSyncTimer=0;
+    this.raceMenuOpen=false;this.publicRooms=[];this.raceListTimer=null;
     this.accounts=new AccountManager();this.debug=new URLSearchParams(location.search).get("debug")==="true";this.showBoxes=this.debug;this.gravity=true;this.fps=0;
     this.playerName=this.accounts.current?.username||"";this.best=this.accounts.current?.bestScore||0;this.records=this.accounts.current?.records||[];this.panelContext=null;this.lastCoinsEarned=0;
     this.difficulty=GAME_DIFFICULTIES[this.loadText(STORAGE_KEYS.difficulty)]?.id||"normal";
     this.audio=new AudioManager(this.loadBoolean(STORAGE_KEYS.soundMuted));this.input=new InputManager(canvas,action=>this.action(action));
     this.race=new RaceManager({
-      onLobby:snapshot=>{if(this.state!==GameState.PLAYING)showRaceLobby(this.overlay,snapshot);},
+      onLobby:snapshot=>{if(this.state!==GameState.PLAYING&&this.state!==GameState.BOSS)showRaceLobby(this.overlay,snapshot);},
       onStart:({seed,difficulty,startAt})=>{
         this.difficulty=difficulty;
         showRaceLobby(this.overlay,{...this.race.snapshot("레이스가 곧 시작됩니다!"),status:"3 · 2 · 1 · 출발!"});
         setTimeout(()=>this.start(seed),Math.max(0,(startAt||Date.now())-Date.now()));
       },
       onUpdate:players=>{this.racePlayers=players;},
-      onError:message=>showRaceLobby(this.overlay,{mode:"menu",status:message})
+      onRooms:rooms=>{this.publicRooms=rooms;if(this.raceMenuOpen&&!this.race.active)showRaceLobby(this.overlay,{mode:"menu",rooms,difficulty:this.difficulty});},
+      onError:message=>{if(this.state===GameState.START){this.openRaceMenu(message,false);}else console.warn(message);}
     });
     this.lastTime=performance.now();this.overlay.addEventListener("click",e=>{const target=e.target.closest("[data-action]");if(target)this.action(target.dataset.action,target.dataset.id);});
-    this.overlay.addEventListener("change",e=>{if(e.target.dataset.action==="raceDifficulty")this.race.setDifficulty(e.target.value);});
+    this.overlay.addEventListener("change",e=>{if(e.target.dataset.action==="raceDifficulty"){this.difficulty=e.target.value;this.save(STORAGE_KEYS.difficulty,this.difficulty);if(this.race.isHost)this.race.setDifficulty(this.difficulty);}});
     this.overlay.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.matches("#loginName,#loginPassword,#signupName,#signupPassword"))this.action(e.target.id.startsWith("login")?"login":"signup");});
   }
   async init() {
@@ -60,14 +62,16 @@ export class Game {
     if(action==="buyItem"){this.buyFromStore("item",targetId);return;}
     if(action.startsWith("use:")){this.useInventory(action.slice(4));return;}
     if(action==="codex"&&this.state===GameState.START){showCodex(this.overlay);return;}
-    if(action==="race"&&this.state===GameState.START){this.captureDifficulty();showRaceLobby(this.overlay);return;}
-    if(action==="createRace"){this.race.create(this.playerName,this.difficulty);return;}
-    if(action==="joinRace"){const code=(this.overlay.querySelector("#roomCode")?.value||"").trim();if(code.length!==6){showRaceLobby(this.overlay,{mode:"menu",status:"6자리 방 코드를 입력해 주세요."});return;}this.race.join(code,this.playerName);return;}
+    if(action==="race"&&this.state===GameState.START){this.captureDifficulty();this.openRaceMenu();return;}
+    if(action==="refreshRaces"){this.refreshPublicRooms();return;}
+    if(action==="createRace"){this.captureRaceDifficulty();this.closeRaceMenu();this.race.create(this.playerName,this.difficulty);return;}
+    if(action==="joinPublicRace"){this.closeRaceMenu();this.race.join(targetId,this.playerName);return;}
+    if(action==="joinRace"){const code=(this.overlay.querySelector("#roomCode")?.value||"").trim();if(code.length!==6){showRaceLobby(this.overlay,{mode:"menu",rooms:this.publicRooms,difficulty:this.difficulty,status:"6자리 방 코드를 입력해 주세요."});return;}this.closeRaceMenu();this.race.join(code,this.playerName);return;}
     if(action==="startRace"){this.race.startRace(this.race.difficulty);return;}
-    if(action==="raceBack"){this.race.destroy();this.state=GameState.START;this.showStart();return;}
+    if(action==="raceBack"){this.closeRaceMenu();this.race.destroy();this.state=GameState.START;this.showStart();return;}
     if(["activate","Space","start"].includes(action)&&this.state===GameState.START&&!this.race.active){this.captureDifficulty();this.start();return;}
     if(["activate","Space","restart"].includes(action)&&this.state===GameState.GAME_OVER){if(this.race.active){this.race.destroy();this.state=GameState.START;this.showStart();}else this.start();return;}
-    if(action==="home"){this.race.destroy();this.state=GameState.START;this.showStart();return;}
+    if(action==="home"){this.closeRaceMenu();this.race.destroy();this.state=GameState.START;this.showStart();return;}
     if(action==="KeyP"||action==="pause"){this.togglePause();return;}
     if(action==="KeyM"||action==="mute"){this.audio.toggle();this.save(STORAGE_KEYS.soundMuted,this.audio.muted);this.syncButtons();return;}
     if(this.debug&&/^Digit[1-9]$/.test(action)){this.forceLevel(Number(action.at(-1)));return;}
@@ -80,6 +84,7 @@ export class Game {
     if(this.debug&&action==="KeyR")this.start();
   }
   start(seed=null) {
+    this.closeRaceMenu();
     this.state=GameState.PLAYING;this.overlay.classList.remove("start-background");this.overlay.innerHTML="";this.player.reset();this.level=CHARACTER_LEVELS[0];this.player.setLevel(this.level);
     this.runSeed=Number(seed??Date.now());this.bossBattle=null;this.clearedBosses.clear();
     this.platformManager.reset(this.difficulty,seed);this.distance=0;this.bonusScore=0;this.score=0;this.levelBanner=0;this.pressureDistance=0;this.windTimer=0;this.windDirection=seed?(seed%2?1:-1):(Math.random()<.5?-1:1);this.raceSyncTimer=0;this.applyUpgrades();this.player.land(this.platformManager.platforms[0]);this.syncButtons();this.updateItemDock();
@@ -191,6 +196,14 @@ export class Game {
   showStart(){if(!this.accounts.current){this.showAuth();return;}this.playerName=this.accounts.current.username;this.best=this.accounts.current.bestScore;this.records=this.accounts.current.records;showStart(this.overlay,this.best,"assets/sprites/level1/idle.png",this.accounts.current,this.difficulty);this.syncButtons();this.updateItemDock();}
   showAuth(options={}){showAuth(this.overlay,options);this.syncButtons();}
   captureDifficulty(){this.difficulty=this.overlay.querySelector('input[name="difficulty"]:checked')?.value||this.difficulty||"normal";this.save(STORAGE_KEYS.difficulty,this.difficulty);}
+  captureRaceDifficulty(){this.difficulty=this.overlay.querySelector('input[name="raceDifficulty"]:checked')?.value||this.difficulty||"normal";this.save(STORAGE_KEYS.difficulty,this.difficulty);}
+  openRaceMenu(status="",refresh=true){
+    this.raceMenuOpen=true;showRaceLobby(this.overlay,{mode:"menu",rooms:this.publicRooms,difficulty:this.difficulty,status});
+    clearInterval(this.raceListTimer);this.raceListTimer=setInterval(()=>this.refreshPublicRooms(),4000);
+    if(refresh)this.refreshPublicRooms();
+  }
+  closeRaceMenu(){this.raceMenuOpen=false;clearInterval(this.raceListTimer);this.raceListTimer=null;}
+  refreshPublicRooms(){if(this.raceMenuOpen&&!this.race.active)this.race.listRooms();}
   async handleAuth(action){
     const name=this.overlay.querySelector(`#${action}Name`)?.value||"",password=this.overlay.querySelector(`#${action}Password`)?.value||"";
     try{if(action==="signup")await this.accounts.signup(name,password);else await this.accounts.login(name,password);this.playerName=this.accounts.current.username;this.best=this.accounts.current.bestScore;this.records=this.accounts.current.records;this.state=GameState.START;this.showStart();}

@@ -64,6 +64,15 @@ p { line-height: 1.6; }
 .race-join { display: flex; gap: 8px; margin: 12px 0; }
 .race-join input { min-width: 0; flex: 1; height: 48px; padding: 0 13px; border: 2px solid #c9dde4; border-radius: 13px; text-transform: uppercase; font: inherit; font-weight: 900; letter-spacing: .1em; }
 .race-join button { min-width: 92px; }
+.public-room-heading { display: flex; align-items: center; justify-content: space-between; margin: 16px 0 8px; color: #31536d; font-size: 14px; }
+.mini-button { width: auto; min-height: 32px; padding: 5px 10px; border: 0; border-radius: 10px; color: #31536d; background: #e4f0f2; font: inherit; font-size: 12px; font-weight: 900; }
+.public-room-list { display: grid; gap: 7px; max-height: 190px; margin: 0; padding: 0; overflow-y: auto; list-style: none; }
+.public-room { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 10px; border: 1px solid #d5e5e8; border-radius: 13px; background: #f4f9f8; text-align: left; }
+.public-room div { min-width: 0; display: grid; gap: 2px; }
+.public-room strong,.public-room small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.public-room small { color: #6b7e88; font-size: 11px; }
+.public-room button { width: auto; min-width: 66px; min-height: 38px; padding: 7px 11px; }
+.empty-room { padding: 15px; border-radius: 12px; color: #71838b; background: #f2f6f5; font-size: 12px; line-height: 1.55; }
 .codex-card { width: min(100%, 430px); max-height: 88vh; padding: 20px; overflow: auto; }
 .codex-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 16px 0; }
 .codex-entry { padding: 8px 4px; border-radius: 14px; background: #edf5f4; font-size: 11px; font-weight: 800; }
