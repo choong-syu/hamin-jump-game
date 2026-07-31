@@ -16,7 +16,26 @@ export class Player {
     if(this.x+this.width<0)this.x=GAME_WIDTH;if(this.x>GAME_WIDTH)this.x=-this.width;
     if(this.stateTime>.08) this.state=this.velocityY<-80?PlayerState.RISE:this.velocityY>80?PlayerState.FALL:this.state;
   }
-  land(platform,power=1) { const centerX=this.x+this.hitbox.offsetX+this.hitbox.width/2,surfaceY=platform.getSurfaceY?platform.getSurfaceY(centerX):platform.y;this.y=surfaceY-this.hitbox.offsetY-this.hitbox.height;this.velocityY=-this.jumpPower*power;this.state=PlayerState.LANDING;this.stateTime=0; }
+  land(platform,power=1) {
+    const centerX=this.x+this.hitbox.offsetX+this.hitbox.width/2;
+    const surfaceY=platform.getSurfaceY?platform.getSurfaceY(centerX):platform.y;
+    const angle=platform.currentAngle??platform.angle??0;
+    this.y=surfaceY-this.hitbox.offsetY-this.hitbox.height;
+    if(Math.abs(angle)>.001){
+      // 화면 좌표에서 경사면의 접선은 (cos, sin), 위쪽 법선은 (sin, -cos)이다.
+      // 착지 직전의 접선 운동량은 일부 유지하고 자동 점프는 법선 방향으로 튕겨낸다.
+      const cos=Math.cos(angle),sin=Math.sin(angle);
+      const tangentSpeed=this.velocityX*cos+this.velocityY*sin;
+      const retainedTangent=tangentSpeed*.72;
+      const bounceSpeed=this.jumpPower*power;
+      this.velocityX=Math.max(-this.moveSpeed,Math.min(this.moveSpeed,retainedTangent*cos+bounceSpeed*sin));
+      this.velocityY=retainedTangent*sin-bounceSpeed*cos;
+      this.facing=this.velocityX<0?"left":"right";
+    }else{
+      this.velocityY=-this.jumpPower*power;
+    }
+    this.state=PlayerState.LANDING;this.stateTime=0;
+  }
   getCollisionBox(previous=false) { return {x:this.x+this.hitbox.offsetX,y:(previous?this.previousY:this.y)+this.hitbox.offsetY,width:this.hitbox.width,height:this.hitbox.height}; }
   render(ctx,image,debug=false) {
     let sx=1,sy=1,rot=0,bob=0;
