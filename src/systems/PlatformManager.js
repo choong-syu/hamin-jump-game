@@ -40,6 +40,15 @@ export class PlatformManager {
     for(const option of options){cursor+=option.chance*chanceScale;if(roll<cursor){type=option.type;break;}}
     // 타이밍이 겹치면 불가능해질 수 있는 동적 발판은 같은 종류로 연속 생성하지 않는다.
     if(["vanishing","vertical","rotating"].includes(type)&&last.type===type)type="normal";
+    // 레벨이 높아질수록 안정적인 발판 중 일부가 매우 작아진다.
+    // 이미 움직임 자체가 어려운 발판에는 중첩하지 않아 불가능한 조합을 피한다.
+    const tinyEligible=["normal","tilted","breakable","conveyor","ice","pulse"].includes(type);
+    const tinyModeScale=mode==="advanced"?1.25:mode==="beginner"?.6:1;
+    const tinyChance=level>=4?Math.min(.24,.04+(level-4)*.025)*tinyModeScale:0;
+    if(tinyEligible&&this.random()<tinyChance){
+      const center=x+width/2,tinyMax=Math.max(36,56-(level-4)*2.5),tinyMin=Math.max(26,tinyMax-10);
+      width=this.range(tinyMin,tinyMax);x=Math.max(20,Math.min(460-width,center-width/2));
+    }
     let item=null;const itemRoll=this.random();if(itemRoll<.07)item="star";else if(itemRoll<.10)item="spring";else if(level>=4&&itemRoll<.12)item="wings";else if(level>=6&&itemRoll<.135)item="shield";else if(level>=7&&itemRoll<.15)item="gem";else if(level>=8&&itemRoll<.163)item="feather";
     const speedMode=mode==="advanced"?1.15:mode==="beginner"?.85:1;
     const movingSpeed=type==="moving"?(28+level*6+this.range(0,18))*speedMode:0;
